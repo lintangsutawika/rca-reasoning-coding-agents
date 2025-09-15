@@ -48,7 +48,7 @@ FULL_SAVE_PATH=${SAVE_MODEL_PATH}${RUN_NAME}
 LOGPROB_BS=16
 PPO_BS=16
 
-python -m emac.main_grpo \
+python -m verl.trainer.main_ppo \
     +trainer.wandb.language=${LANGUAGE} \
     +trainer.wandb.task=${TASK} \
     +trainer.use_gcs=${USE_GCS} \
