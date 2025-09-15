@@ -1,1 +1,1 @@
-# EMAC
+# Reasoning Coding Agents
