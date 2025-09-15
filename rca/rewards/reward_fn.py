@@ -3,7 +3,7 @@ import re
 
 from Levenshtein import distance, ratio
 
-from emac.utils.parsing import parse_action
+from rca.utils.parsing import parse_action
 
 def compute_score(data_source, solution_str, ground_truth, extra_info=None):
 
