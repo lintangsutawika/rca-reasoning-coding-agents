@@ -35,4 +35,4 @@ ENV/
 *.png
 *.csv
 !data/sample.csv
-config/*
+config_env/*

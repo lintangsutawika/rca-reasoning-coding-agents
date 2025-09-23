@@ -9,7 +9,7 @@ packages = ["rca"]
 allow-direct-references = true
 
 [project]
-name = "emac"
+name = "rca"
 version = "0.0.1"
 authors = [
     {name="Lintang Sutawika", email="lsutawik@andrew.cmu.edu"}
@@ -22,9 +22,19 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = { "text" = "MIT" }
+dependencies = [
+    "jsonlines>=4.0.0",
+    "mini-swe-agent>=1.12.0",
+    "skyrl-train>=0.1.0",
+    "swebench>=4.1.0",
+    "torch>=2.8.0",
+    "vllm>=0.10.2",
+]
 
+[tool.uv.extra-build-dependencies]
+flash-attn = ["torch"]
 
 [tool.setuptools.packages.find]
 include = ["rca/*"]
