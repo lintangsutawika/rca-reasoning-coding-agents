@@ -7,8 +7,14 @@ from loguru import logger
 
 from jinja2 import StrictUndefined, Template
 
-from minisweagent.environments import Environment
+from swebench.harness.constants import DOCKER_WORKDIR
+from swesmith.profiles import registry
+from swesmith.constants import (
+    TEST_OUTPUT_START,
+    TEST_OUTPUT_END,
+)
 
+from minisweagent.environments import Environment, get_environment
 from rca.environments import ApptainerEnvironment
 
 class MiniSWEEvaluationResult(TypedDict):
@@ -35,11 +41,20 @@ def get_docker_image_name(instance: dict, data_source: str="swe-bench") -> str:
             raise NotImplementedError(f"Data source: {data_source} is not supported")
     return image_name
 
-def get_environment(config: dict, instance: dict, data_source: str) -> Environment:
+def get_sb_environment(config: dict, instance: dict, data_source: str) -> Environment:
     env_config = config.setdefault("environment", {})
+    env_config["environment_class"] = env_config.get("environment_class", "apptainer")
     image_name = get_docker_image_name(instance, data_source=data_source)
-    env_config["image"] = "docker://" + image_name
-    env = ApptainerEnvironment(**env_config)
+    if env_config["environment_class"] == "docker":
+        env_config["image"] = image_name
+        env = get_environment(env_config)
+    else:
+        env_config["image"] = f"docker://{image_name}"
+        if env_config["environment_class"] == "singularity":
+            env = get_environment(env_config)
+        elif env_config["environment_class"] == "apptainer":
+            env_config.pop("environment_class")
+            env = ApptainerEnvironment(**env_config)
     if startup_command := config.get("run", {}).get("env_startup_command"):
         startup_command = Template(startup_command, undefined=StrictUndefined).render(**instance)
         out = env.execute(startup_command)
@@ -58,7 +73,8 @@ def evaluate_trajectory(
 
     env = None
     try:
-        env = get_environment(
+        # env = get_environment(
+        env = get_sb_environment(
             sweagent_config,
             instance,
             data_source
@@ -68,23 +84,40 @@ def evaluate_trajectory(
         logger.info(f"Starting environment failed with exception: {e}\n, {traceback.format_exc()}")
         return ret
 
+    profile = registry[".".join(instance["instance_id"].split(".")[:-1])]()
+    f2p_files, p2p_files = profile.get_test_files(instance)
+    test_files = " ".join(f2p_files + p2p_files)
+    if test_files:
+        env.execute(f"git checkout -- {test_files}", cwd=sweagent_config["cwd"])
+
     # apply git patch
     # NOTE (sumanthrh): This applies patch in-line, and the maximum patch size is limited by the OS limits for `ARG_MAX`.
     # In modern systems, this is typically ~ 1 MB, which is pretty generous.
     # For simplicity, we assume that large patches greater than `ARG_MAX` are meant to fail
     delimiter = f"PATCH_{uuid.uuid4().hex}"  # unlikely to collide with symbols in the patch
     command = f"git apply <<'{delimiter}'\n{model_patch}\n{delimiter}"
-
-    obs = env.execute(command, cwd=sweagent_config.get("cwd", "/"))
+    obs = env.execute(command, cwd=sweagent_config["cwd"])
 
     if obs["returncode"] != 0:
         ret["eval_error"] = obs["output"]
     else:
         # run eval script in-line
-        eval_script = instance["eval_script"]
+        # eval_script = instance["eval_script"]
+        test_command, _ = profile.get_test_cmd(instance) #, f2p_only=f2p_only)
+        eval_script = "\n".join(
+                [
+                    "#!/bin/bash",
+                    "set -uxo pipefail",
+                    f"cd {DOCKER_WORKDIR}",
+                    f": '{TEST_OUTPUT_START}'",
+                    test_command,
+                    f": '{TEST_OUTPUT_END}'",
+                ]
+            ) + "\n"
+
         eval_cmd = f"bash <<'EOF'\n{eval_script}\nEOF"
         # add longer timeout for evaluation
-        obs = env.execute(eval_cmd, timeout=3600)
+        obs = env.execute(eval_cmd, cwd=sweagent_config["cwd"], timeout=3600)
         # use the return value
         ret["resolved"] = obs["returncode"] == 0
         # truncate to last 1000 characters for brevity
