@@ -26,9 +26,11 @@ requires-python = ">=3.12"
 license = { "text" = "MIT" }
 dependencies = [
     "jsonlines>=4.0.0",
+    "loguru>=0.7.3",
     "mini-swe-agent>=1.12.0",
     "skyrl-train>=0.1.0",
     "swebench>=4.1.0",
+    "swesmith>=0.0.7",
     "torch>=2.8.0",
     "vllm>=0.10.2",
 ]
