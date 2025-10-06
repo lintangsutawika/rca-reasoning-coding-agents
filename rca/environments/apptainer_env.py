@@ -9,9 +9,9 @@ from minisweagent.environments.singularity import SingularityEnvironment
 class ApptainerEnvironment(SingularityEnvironment):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        print("Starting Apptainer action execution server...")
+        # print("Starting Apptainer action execution server...")
         # self.execute("python -m openhands.runtime.action_execution_server.py 8120")
-        print("sandbox_dir:", self.sandbox_dir)
+        # print("sandbox_dir:", self.sandbox_dir)
 
     def execute(self, command: str, cwd: str = "", *, timeout: int | None = None) -> dict[str, Any]:
         """Execute a command in a Singularity container and return the result as a dict."""
