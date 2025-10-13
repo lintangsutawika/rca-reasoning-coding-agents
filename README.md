@@ -15,7 +15,7 @@ uv run rca/construct_dataset.py
 Train a model to improve performance over the full SWE task trajectory. This involves building a docker remote workspace for each prompt+rollout and calling the model checkpoint to produce the rollout before calculating the reward and advantage.
 
 ```
-bash scripts/run_training.sh -m Qwen/Qwen3-4B
+bash scripts/run_training.sh -m Qwen/Qwen3-4B -d data/swe_smith/
 ```
 
 ### Training Short Horizon RL
