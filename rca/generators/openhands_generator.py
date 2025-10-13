@@ -170,7 +170,7 @@ def init_and_run(
             assert isinstance(conversation, RemoteConversation)
             try:
                 logger.info("Conversation Starting")
-                conversation.send_message(instance["problem_statement"])
+                conversation.send_message(instance["problem_statement"]+"/no_think")
                 conversation.run()
             except Exception as e:
                 logger.error(f"Error is sending conversation: {e}", exc_info=True)
