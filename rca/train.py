@@ -4,12 +4,13 @@ from skyrl_train.entrypoints.main_base import BasePPOExp, config_dir, validate_c
 from skyrl_train.utils import initialize_ray
 import ray
 
-from rca.generators.mini_swe_generator import MiniSweAgentGenerator
+# from rca.generators.mini_swe_generator import MiniSweAgentGenerator
+from rca.generators.openhands_generator import OpenhandsGenerator
 
 
-class MiniSWEPPOExp(BasePPOExp):
+class OpenhandsPPOExp(BasePPOExp):
     def get_generator(self, cfg, tokenizer, inference_engine_client):
-        generator = MiniSweAgentGenerator(
+        generator = OpenhandsGenerator(
             generator_cfg=cfg.generator,
             skyrl_gym_cfg=OmegaConf.create({"max_env_workers": 0}),
             inference_engine_client=inference_engine_client,
@@ -22,7 +23,7 @@ class MiniSWEPPOExp(BasePPOExp):
 @ray.remote(num_cpus=1)
 def skyrl_entrypoint(cfg: DictConfig):
     # make sure that the training loop is not run on the head node.
-    exp = MiniSWEPPOExp(cfg)
+    exp = OpenhandsPPOExp(cfg)
     exp.run()
 
 
