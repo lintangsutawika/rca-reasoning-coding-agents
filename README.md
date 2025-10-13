@@ -1,6 +1,19 @@
 # Reasoning Coding Agents
 
-## Training
+## Preparation
+
+### Environment Preparation
+
+```
+git clone https://github.com/lintangsutawika/rca-reasoning-coding-agents.git
+cd rca-reasoning-coding-agents
+
+git clone https://github.com/All-Hands-AI/OpenHands.git
+cp custom_openhands/system_prompt.j2 agent-sdk/openhands/sdk/agent/prompts/
+cp custom_openhands/Dockerfile agent-sdk/openhands/agent_server/docker/
+
+export $PWD/agent-sdk/
+```
 
 ### Dataset Preperation
 
@@ -9,6 +22,8 @@ Generate dataset, we will use SWE-Smith to train out models
 ```
 uv run rca/construct_dataset.py
 ```
+
+## Training
 
 ### Training Long Horizon RL
 
@@ -22,22 +37,9 @@ bash scripts/run_training.sh -m Qwen/Qwen3-4B -d data/swe_smith/
 
 WIP
 
-## Eval
+## Evaluation
 
 WIP
-
-## Preparation
-
-```
-git clone https://github.com/lintangsutawika/rca-reasoning-coding-agents.git
-cd rca-reasoning-coding-agents
-
-git clone https://github.com/All-Hands-AI/OpenHands.git
-cp custom_openhands/system_prompt.j2 agent-sdk/openhands/sdk/agent/prompts/
-cp custom_openhands/Dockerfile agent-sdk/openhands/agent_server/docker/
-
-export $PWD/agent-sdk/
-```
 
 ## Caveats that need to be solved
 1. Since each docker is a remote workspace, it needs to access the VLLM outside of the docker environment. I have not been able to fix this in a way that it can access the vllm server in 0.0.0.0 or 127.0.0.1 in the host server. The work around is to use the public IP of the host server which is not ideal.
