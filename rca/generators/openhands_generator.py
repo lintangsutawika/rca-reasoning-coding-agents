@@ -187,7 +187,13 @@ def init_and_run(
             if message.role == "assistant":
                 tool_name = message.tool_calls[0].name
                 tool_args = ast.literal_eval(message.tool_calls[0].arguments)
-                message_text = message.content[0].text
+                if tool_name != "finish":
+                    if len(message.content) == 0:
+                        message_text = ""
+                    else:
+                        message_text = message.content[0].text
+                else:
+                    message_text = tool_args["message"]
 
                 full_text = message_text + "\n\n" + f"<function={tool_name}>"
                 for k, v in tool_args.items():
@@ -195,6 +201,10 @@ def init_and_run(
                 full_text += f"</function>\n"
             else:
                 full_text = message.content[0].text
+                if full_text.startswith("diff --git"):
+                    result = full_text
+                    break
+
             full_messages.append({"role": message.role, "content": full_text})
 
     except Exception as e:
