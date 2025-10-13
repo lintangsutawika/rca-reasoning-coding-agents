@@ -25,19 +25,46 @@ classifiers = [
 requires-python = ">=3.12"
 license = { "text" = "MIT" }
 dependencies = [
-    "jsonlines>=4.0.0",
-    "loguru>=0.7.3",
+    "skyrl-train @ git+https://github.com/NovaSky-AI/SkyRL.git#subdirectory=skyrl-train",
+    "openhands-agent-server @ git+https://github.com/All-Hands-AI/agent-sdk.git@main#subdirectory=openhands/agent_server",
+    "openhands-sdk @ git+https://github.com/All-Hands-AI/agent-sdk.git@main#subdirectory=openhands/sdk",
+    "openhands-tools @ git+https://github.com/All-Hands-AI/agent-sdk.git@main#subdirectory=openhands/tools",
     "mini-swe-agent>=1.12.0",
-    "skyrl-train>=0.1.0",
-    "swebench>=4.1.0",
     "swesmith>=0.0.7",
-    "torch>=2.8.0",
-    "vllm>=0.10.2",
+    "swebench>=4.1.0",
+    "vllm",
+    "bashlex>=0.18",
+    "binaryornot>=0.4.4",
+    "cachetools",
+    "libtmux>=0.46.2",
+    "pydantic>=2.11.7",
+    "browser-use>=0.7.7",
+    "func-timeout>=4.3.5",
+    "logger>=1.4",
+    "ipython",
 ]
+
+[dependency-groups]
+dev = [
+    "ipython>=9.6.0",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
+
+[tool.uv]
+override-dependencies = [
+    "flash-attn",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
 
 [tool.uv.extra-build-dependencies]
 flash-attn = ["torch"]
 
 [tool.setuptools.packages.find]
 include = ["rca/*"]
-
