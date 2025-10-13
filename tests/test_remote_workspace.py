@@ -114,7 +114,10 @@ def main() -> None:
             tool_name = message.tool_calls[0].name
             tool_args = ast.literal_eval(message.tool_calls[0].arguments)
             if tool_name != "finish":
-                message_text = message.content[0].text
+                if len(message.content) == 0:
+                    message_text = ""
+                else:
+                    message_text = message.content[0].text
             else:
                 message_text = tool_args["message"]
 
