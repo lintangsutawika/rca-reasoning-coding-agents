@@ -42,3 +42,4 @@ export $PWD/agent-sdk/
 ## Caveats that need to be solved
 1. Since each docker is a remote workspace, it needs to access the VLLM outside of the docker environment. I have not been able to fix this in a way that it can access the vllm server in 0.0.0.0 or 127.0.0.1 in the host server. The work around is to use the public IP of the host server which is not ideal.
 2. Not sure how to access the system message from openhands. The remote worksapce initialization includes a local workspace so the system message and user message isn't sent recived by the callback that is initialized by in the remote workspace. The workaround is to reconstruct the system message and manually add it to the collected messages.
+3. There seems to be a startup error `WebSocket is not connected. Need to call \"accept\" first.` but then the rollout works just fine. Not sure what this is.
