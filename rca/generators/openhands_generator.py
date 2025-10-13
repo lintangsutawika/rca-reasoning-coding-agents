@@ -1,3 +1,4 @@
+import json
 import asyncio
 from typing import Dict, List, Optional, Any, Tuple
 from omegaconf import DictConfig
@@ -170,7 +171,7 @@ def init_and_run(
             assert isinstance(conversation, RemoteConversation)
             try:
                 logger.info("Conversation Starting")
-                conversation.send_message(instance["problem_statement"]+"/no_think")
+                conversation.send_message(instance["problem_statement"])
                 conversation.run()
             except Exception as e:
                 logger.error(f"Error is sending conversation: {e}", exc_info=True)
@@ -214,28 +215,30 @@ def init_and_run(
         extra_info = {"traceback": traceback.format_exc()}
     finally:
         # Create trajectory directory with proper structure: step_{global_step}/{train/eval}
-        path = Path(generator_cfg.miniswe_traj_dir) / f"step_{global_step}" / training_phase
+        path = Path(generator_cfg.traj_dir) / f"step_{global_step}" / training_phase
         path.mkdir(parents=True, exist_ok=True)
         # Use instance_id and repetition_id for meaningful filename: {instance_id}_{repetition_id}.json
         instance_id = instance["instance_id"]
-        filename = f"{instance_id}_{trajectory_id.repetition_id}.json"
+        filename = f"{instance_id}_{trajectory_id.repetition_id}.jsonl"
         path = path / filename
-        if agent is not None:
-            eval_error = None
-            try:
-                result = evaluate_trajectory(instance, result, {"cwd": working_dir}, data_source)
-                reward = int(result["resolved"])
-                eval_error = result["eval_error"]
-                if eval_error:
-                    error = eval_error
-                    logger.debug(f"Error during evaluation {eval_error}")
-            except Exception as e:
-                logger.debug(f"Error during evaluation {e}")
-                logger.debug(f"traceback: {traceback.format_exc()}")
-                eval_error = str(e)
-                error = str(e)
+        eval_error = None
+        try:
+            result = evaluate_trajectory(instance, result, {"cwd": working_dir}, data_source)
+            reward = int(result["resolved"])
+            eval_error = result["eval_error"]
+            if eval_error:
+                error = eval_error
+                logger.debug(f"Error during evaluation {eval_error}")
+        except Exception as e:
+            logger.debug(f"Error during evaluation {e}")
+            logger.debug(f"traceback: {traceback.format_exc()}")
+            eval_error = str(e)
+            error = str(e)
 
-            # save_traj(agent, path, exit_status=exit_status, result=result, extra_info=extra_info, reward=reward, eval_error=eval_error)  # type: ignore[arg-type]
+        # Save trajectory for debugging
+        with open(path, "w") as f:
+            f.writelines(json.dumps(msg) + "\n" for msg in full_messages)
+        # save_traj(agent, path, exit_status=exit_status, result=result, extra_info=extra_info, reward=reward, eval_error=eval_error)  # type: ignore[arg-type]
 
     return (full_messages, reward, error)
 

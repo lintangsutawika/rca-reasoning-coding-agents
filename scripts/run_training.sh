@@ -38,8 +38,8 @@ LOGGER=wandb
 # We use a small batch size here for demonstration
 # NOTE (sumanthrh): The `generator.max_turns` here is actually unused, and we use the `step_limit` from the `swebench.yaml` file. 
 uv run --isolated -m rca.train \
-  data.train_data="['$DATA_DIR/train.parquet']" \
-  data.val_data="['$DATA_DIR/validation.parquet']" \
+  data.train_data="['$DATA_PATH/train.parquet']" \
+  data.val_data="['$DATA_PATH/validation.parquet']" \
   trainer.algorithm.advantage_estimator="grpo" \
   trainer.policy.model.path=${MODEL} \
   trainer.placement.colocate_all=true \
@@ -51,6 +51,7 @@ uv run --isolated -m rca.train \
   trainer.policy.sequence_parallel_size=2 \
   generator.num_inference_engines=$NUM_INFERENCE_ENGINES \
   generator.inference_engine_tensor_parallel_size=$TP_SIZE \
+  +generator.traj_dir=$CKPT_PATH/trajectories/ \
   trainer.epochs=20 \
   trainer.eval_batch_size=50 \
   trainer.eval_before_train=false \
@@ -83,4 +84,3 @@ uv run --isolated -m rca.train \
   trainer.run_name=${RUN_NAME} \
   trainer.resume_mode=null \
   trainer.ckpt_path="$CKPT_PATH"
-  $@
