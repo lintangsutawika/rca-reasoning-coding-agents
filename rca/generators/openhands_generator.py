@@ -20,7 +20,7 @@ from skyrl_train.inference_engines.inference_engine_client import InferenceEngin
 from skyrl_train.inference_engines.utils import get_sampling_params_for_backend
 from skyrl_train.generators.utils import (
     get_rollout_metrics,
-    # encode_messages_subset,
+    encode_messages_subset,
 )
 
 from pydantic import SecretStr
@@ -40,66 +40,13 @@ from openhands.sdk import (
 )
 
 from rca.utils.mini_swe import get_docker_image_name
+import logging
 
 logger = get_logger(__name__)
+logger.setLevel(logging.WARNING)
 
 public_ip = requests.get('https://api.ipify.org').text
 print(f"Public IP: {public_ip}")
-
-additional_command = """<SUBMISSION>
-* When you've completed your work (reading, editing, testing), and cannot make further progress:
-  - Use the bash tool to execute `git add -A && git diff --cached`
-</SUBMISSION>"""
-
-def encode_messages_subset(messages: ConversationType, tokenizer):
-    """Encodes a subset of messages from a multi-turn conversation using the fixed base approach.
-
-    This function tokenizes messages as if they are part of a larger conversation, ensuring
-    no additional default system messages are prepended by the tokenizer's chat template
-
-    The "fixed base approach" works by:
-    - Creating a dummy base conversation to establish context
-    - Appending the target messages to this base
-    - Tokenizing the full conversation and extracting only the tokens for the target messages
-
-    For simple chat templates without complex token splitting behavior, this produces the same
-    result as directly tokenizing the messages. For templates like Qwen's ChatML format where
-    a default system prompt can be appended, this ensures correct tokenization
-
-    Reference: https://jybsuper.github.io/posts/multiturn_tokenization/#the-breakthrough-fixed-base-approach
-
-    Args:
-        messages: List of message dicts with 'role' and 'content' keys. Must contain at least
-                 one message. These are assumed to be a subset from a larger conversation.
-        tokenizer: HuggingFace tokenizer with chat_template support and eos_token_id defined.
-
-    Returns:
-        List[int]: Token IDs for the given messages, with proper multi-turn context handling.
-    """
-    assert len(messages), "messages list cannot be empty"
-    # Follows https://jybsuper.github.io/posts/multiturn_tokenization/#the-breakthrough-fixed-base-approach
-    base_conversation = [
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "I am a user."},
-    ]
-    if messages[0]["role"] != "assistant":
-        # add an assistant message as well if the first role is user/tool
-        base_conversation.append({"role": "assistant", "content": "I am an assistant."})
-    base_conversation_token_ids = tokenizer.apply_chat_template(
-        base_conversation,
-        add_generation_prompt=False,
-        tokenize=True,
-    )
-
-    full_conversation = base_conversation + messages
-    full_conversation_token_ids = tokenizer.apply_chat_template(
-        full_conversation,
-        add_generation_prompt=False,
-        tokenize=True,
-    )
-    conversation_token_ids = full_conversation_token_ids[len(base_conversation_token_ids) :]
-    return conversation_token_ids
-
 
 @ray.remote(num_cpus=0.01)
 def init_and_run(
@@ -139,10 +86,11 @@ def init_and_run(
             # server_image="ghcr.io/all-hands-ai/agent-server:latest-python",
             base_image=image_name,
             host_port=None,
+            detach_logs=False,
             working_dir=working_dir,
             platform="linux/amd64", # "linux/arm64"
             # forward_env=["AGENT_SDK_PATH", "API_KEY", "LLM_API_KEY", "OPENAI_API_KEY"],  # Forward API key to container
-            forward_env=["AGENT_SDK_PATH", "API_KEY", "CMU_KEY", "OPENAI_API_KEY"],  # Forward API key to container
+            forward_env=["AGENT_SDK_PATH"],  # Forward API key to container
         ) as workspace:
 
             cli_mode = True
@@ -176,37 +124,40 @@ def init_and_run(
             except Exception as e:
                 logger.error(f"Error is sending conversation: {e}", exc_info=True)
             finally:
+                workspace_result = workspace.execute_command("git add -A && git diff --cached", cwd=working_dir)
                 conversation.close()
                 logger.info("Conversation Finished")
 
-        print("=" * 100)
-        print("Conversation finished. Got the following LLM messages:")
-        for i, message in enumerate(messages):
-            print(f"Message {i}: {str(message)[:200]}")
+        print("workspace_result")
+        print(workspace_result)
+        result = workspace_result.stdout
+        print("Final git diff --cached result:")
+        print(result)
+        # print("=" * 100)
+        # print("Conversation finished. Got the following LLM messages:")
+        # for i, message in enumerate(messages):
+        #     print(f"Message {i}: {str(message)[:250]}")
+        # import sys; sys.exit()
 
         for idx, message in enumerate(messages):
+            full_text = ""
             if message.role == "assistant":
-                tool_name = message.tool_calls[0].name
-                tool_args = ast.literal_eval(message.tool_calls[0].arguments)
-                if tool_name != "finish":
-                    if len(message.content) == 0:
-                        message_text = ""
+                if message.content is not None and len(message.content) > 0:
+                    full_text += message.content[0].text
+
+                if message.tool_calls is not None and len(message.tool_calls) > 0:
+                    tool_name = message.tool_calls[0].name
+                    tool_args = ast.literal_eval(message.tool_calls[0].arguments)
+                    if tool_name == "finish":
+                        full_text += tool_args["message"]
                     else:
-                        message_text = message.content[0].text
-                else:
-                    message_text = tool_args["message"]
-
-                full_text = message_text + "\n\n" + f"<function={tool_name}>"
-                for k, v in tool_args.items():
-                    full_text += f"\n<parameter={k}>{v}</parameter>\n"
-                full_text += f"</function>\n"
+                        full_text += "\n\n" + f"<function={tool_name}>"
+                        for k, v in tool_args.items():
+                            full_text += f"\n<parameter={k}>{v}</parameter>\n"
+                        full_text += f"</function>\n"
             else:
-                full_text = message.content[0].text
-                if full_text.startswith("diff --git"):
-                    result = full_text
-                    break
-
-            full_messages.append({"role": message.role, "content": full_text})
+                full_text += message.content[0].text
+            full_messages.append({"role": message.role, "text": full_text})
 
     except Exception as e:
         logger.error(f"Error processing instance {instance['instance_id']}: {e}", exc_info=True)
@@ -239,7 +190,7 @@ def init_and_run(
         with open(path, "w") as f:
             f.writelines(json.dumps(msg) + "\n" for msg in full_messages)
         # save_traj(agent, path, exit_status=exit_status, result=result, extra_info=extra_info, reward=reward, eval_error=eval_error)  # type: ignore[arg-type]
-
+    print("Evaluation result:", result)
     return (full_messages, reward, error)
 
 
