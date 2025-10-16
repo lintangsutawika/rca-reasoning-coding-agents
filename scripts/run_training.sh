@@ -13,7 +13,7 @@ done
 MODEL_ALIAS=$(echo $MODEL | sed 's/\//-/g')
 # Get number of GPUs available
 NUM_GPUS=$(nvidia-smi -L | wc -l)
-N_ROLLOUTS="${N_ROLLOUTS:-4}"
+N_ROLLOUTS="${N_ROLLOUTS:-8}"
 MAX_LENGTH=8192
 RUN_NAME="openhands_${MODEL_ALIAS}"
 set -x
@@ -57,7 +57,7 @@ uv run --isolated -m rca.train \
   trainer.eval_before_train=false \
   trainer.eval_interval=5 \
   trainer.update_epochs_per_batch=1 \
-  trainer.train_batch_size=4 \
+  trainer.train_batch_size=16 \
   trainer.policy_mini_batch_size=4 \
   trainer.micro_forward_batch_size_per_gpu=1 \
   trainer.micro_train_batch_size_per_gpu=1 \
