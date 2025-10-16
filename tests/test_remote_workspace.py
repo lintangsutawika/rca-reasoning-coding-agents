@@ -24,17 +24,13 @@ from rca.utils.mini_swe import get_docker_image_name, evaluate_trajectory
 from datasets import load_dataset
 # import pytest
 
-dataset = load_dataset("SWE-bench/SWE-smith", split="train").to_pandas()
-instance = dataset.iloc[0].to_dict()
-instance["data_source"] = "swe-smith"
-instance_id = instance["instance_id"]
-# patch = instance["model_patch"]
-patch = instance["patch"]
-
 logger = get_logger(__name__)
 
+import requests
+public_ip = requests.get('https://api.ipify.org').text
+print(f"Public IP: {public_ip}")
 
-def main() -> None:
+def test_workspace(instance) -> None:
 
     # api_key = os.getenv("CMU_KEY")
     # api_url = os.getenv("CMU_URL")
@@ -47,9 +43,7 @@ def main() -> None:
     #     api_key=SecretStr(api_key),
     # )
 
-    import requests
-    public_ip = requests.get('https://api.ipify.org').text
-    print(f"Public IP: {public_ip}")
+    instance_id = instance["instance_id"]
     llm = LLM(
         service_id="agent",
         model="hosted_vllm/Qwen/Qwen3-8B",
@@ -92,10 +86,12 @@ def main() -> None:
             agent=agent,
             workspace=workspace,
             callbacks=[conversation_callback],
-            visualize=True,
+            # visualize=True,
+            visualize=False,
         )
         assert isinstance(conversation, RemoteConversation)
-
+        print("Starting conversation...")
+        print(instance["problem_statement"])
         try:
             logger.info("Conversation Starting")
             conversation.send_message(instance["problem_statement"])
@@ -134,15 +130,29 @@ def main() -> None:
             full_text += message.content[0].text
         constructed_messages.append({"role": message.role, "text": full_text})
 
-    print("full_text", full_text)
+    constructed_messages.append({"role": "system", "text": result})
     print("result", result)
     result = evaluate_trajectory(instance, result, {"cwd": working_dir}, data_source)
-    print(result)
-
+    print("Evaluation:", result)
     # Save trajectory for debugging
     with open(f"traj_{instance_id}.jsonl", "w") as f:
         f.writelines(json.dumps(msg) + "\n" for msg in constructed_messages)
 
+    return result
+
 
 if __name__ == "__main__":
-    main()
+
+    import random
+    dataset = load_dataset("SWE-bench/SWE-smith", split="train").to_pandas()
+    dataset = dataset[dataset['problem_statement'] != ""]
+    while True:
+        try:
+            idx = random.randint(0, len(dataset) - 1)
+            print(f"Testing instance {idx}")
+            instance = dataset.iloc[idx].to_dict()
+            result = test_workspace(instance)
+            print(f"Result: {result}")
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            break
