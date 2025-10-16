@@ -58,8 +58,6 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends \
         ca-certificates curl wget sudo apt-utils git jq tmux build-essential \
         coreutils util-linux procps findutils grep sed \
-        # Python
-        python3 python3-pip python3-venv \
         # Docker dependencies
         apt-transport-https gnupg lsb-release; \
     \
@@ -74,9 +72,6 @@ RUN set -eux; \
     chown -R ${USERNAME}:${USERNAME} /workspace; \
     chown -R ${USERNAME}:${USERNAME} /testbed; \
     rm -rf /var/lib/apt/lists/*
-
-RUN ln -sf /usr/bin/python3 /usr/local/bin/python    
-RUN ln -sf /opt/miniconda3/bin/python /usr/local/bin/python
 
 # NOTE: we should NOT include UV_PROJECT_ENVIRONMENT here, 
 # since the agent might use it to perform other work (e.g. tools that use Python)
@@ -176,6 +171,25 @@ RUN chown -R ${USERNAME}:${USERNAME} ${NOVNC_WEB}
 # Override default XFCE wallpaper
 COPY --chown=${USERNAME}:${USERNAME} openhands/agent_server/docker/wallpaper.svg /usr/share/backgrounds/xfce/xfce-shapes.svg
 
+# Update package lists and install build dependencies for Python
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
+    libsqlite3-dev wget curl llvm libncursesw5-dev xz-utils tk-dev \
+    libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download and install Python 3.12
+WORKDIR /tmp
+RUN wget https://www.python.org/ftp/python/3.12.12/Python-3.12.12.tgz \
+    && tar -xf Python-3.12.12.tgz && cd Python-3.12.12 \
+    && ./configure --enable-optimizations \
+    && make -j$(nproc) && make altinstall \
+    && rm -rf /tmp/Python-3.12.12 /tmp/Python-3.12.12.tgz
+
+# Set Python 3.12 as the default python3
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/local/bin/python3.12 1
+RUN ln -sf /usr/bin/python3 /usr/local/bin/python
+
 USER ${USERNAME}
 WORKDIR /
 ENV OH_ENABLE_VNC=true
@@ -197,6 +211,7 @@ FROM base-image AS source
 ARG USERNAME
 COPY --chown=${USERNAME}:${USERNAME} --from=builder /agent-server /agent-server
 ENTRYPOINT ["/agent-server/.venv/bin/python", "-m", "openhands.agent_server"]
+# /agent-server/.venv/bin/python -m openhands.agent_server
 
 FROM base-image-minimal AS source-minimal
 ARG USERNAME
