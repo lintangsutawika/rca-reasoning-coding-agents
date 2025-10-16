@@ -43,7 +43,8 @@ from rca.utils.mini_swe import get_docker_image_name
 import logging
 
 logger = get_logger(__name__)
-logger.setLevel(logging.WARNING)
+# logger.setLevel(logging.WARNING)
+logger.setLevel(logging.ERROR)
 
 public_ip = requests.get('https://api.ipify.org').text
 print(f"Public IP: {public_ip}")
@@ -133,10 +134,10 @@ def init_and_run(
         result = workspace_result.stdout
         print("Final git diff --cached result:")
         print(result)
-        # print("=" * 100)
-        # print("Conversation finished. Got the following LLM messages:")
-        # for i, message in enumerate(messages):
-        #     print(f"Message {i}: {str(message)[:250]}")
+        print("=" * 100)
+        print("Conversation finished. Got the following LLM messages:")
+        for i, message in enumerate(messages):
+            print(f"Message {i}: {str(message)[:250]}")
         # import sys; sys.exit()
 
         for idx, message in enumerate(messages):
@@ -190,7 +191,7 @@ def init_and_run(
         with open(path, "w") as f:
             f.writelines(json.dumps(msg) + "\n" for msg in full_messages)
         # save_traj(agent, path, exit_status=exit_status, result=result, extra_info=extra_info, reward=reward, eval_error=eval_error)  # type: ignore[arg-type]
-    print("Evaluation result:", result)
+    print("Evaluation result:", str(result))
     return (full_messages, reward, error)
 
 
@@ -251,9 +252,8 @@ class OpenhandsGenerator(SkyRLGymGenerator):
             batch_metadata.global_step,
             batch_metadata.training_phase,
         )
-        if not len(messages):
-            return None, None, None, None, None, None
-
+        if len(messages) == 0:
+            messages = [{"role": "assistant", "text": "No response"}]
         # response_messages = [{"role": msg.role, "content": msg.content[0].text} for msg in messages]
 
         # TODO Properly handle the right system prompt.
