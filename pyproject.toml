@@ -46,7 +46,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["rca"]
+include = ["rca", "agent-sdk"]
 
 [dependency-groups]
 dev = [
@@ -80,8 +80,8 @@ torchvision = { index = "pytorch-cu128" }
 
 [tool.uv.workspace]
 members = [
-  "agent-sdk/openhands/sdk",
-  "agent-sdk/openhands/tools",
-  "agent-sdk/openhands/workspace",
-  "agent-sdk/openhands/agent_server",
+  "agent-sdk/openhands-sdk",
+  "agent-sdk/openhands-tools",
+  "agent-sdk/openhands-workspace",
+  "agent-sdk/openhands-agent-server",
 ]
