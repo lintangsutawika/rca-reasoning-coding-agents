@@ -29,7 +29,10 @@ def skyrl_entrypoint(cfg: DictConfig):
 
 @hydra.main(config_path=config_dir, config_name="ppo_base_config", version_base=None)
 def main(cfg: DictConfig) -> None:
+<<<<<<< HEAD
 
+=======
+>>>>>>> ae7c2f7 (add all)
     # validate the arguments
     validate_cfg(cfg)
 
