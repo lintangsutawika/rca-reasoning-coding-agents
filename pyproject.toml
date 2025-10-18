@@ -1,13 +1,3 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["rca"]
-
-[tool.hatch.metadata]
-allow-direct-references = true
-
 [project]
 name = "rca"
 version = "0.0.1"
@@ -26,9 +16,10 @@ requires-python = ">=3.12"
 license = { "text" = "MIT" }
 dependencies = [
     "skyrl-train @ git+https://github.com/NovaSky-AI/SkyRL.git@main#subdirectory=skyrl-train",
-    "openhands-agent-server @ git+https://github.com/All-Hands-AI/agent-sdk.git@main#subdirectory=openhands/agent_server",
-    "openhands-sdk @ git+https://github.com/All-Hands-AI/agent-sdk.git@main#subdirectory=openhands/sdk",
-    "openhands-tools @ git+https://github.com/All-Hands-AI/agent-sdk.git@main#subdirectory=openhands/tools",
+    "openhands-tools",
+    "unidiff>=0.7.5,<0.8.0",
+    "openhands-agent-server",
+    "openhands-workspace",
     "mini-swe-agent>=1.12.0",
     "swesmith>=0.0.7",
     "swebench>=4.1.0",
@@ -42,16 +33,29 @@ dependencies = [
     "func-timeout>=4.3.5",
     "logger>=1.4",
     "ipython",
+    "fire>=0.7.1",
 ]
+
+[project.scripts]
+validate-cfg = "benchmarks.scripts.validate_cfg:main"
+swebench-infer = "benchmarks.swe_bench.run_infer:main"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rca", "agent-sdk"]
 
 [dependency-groups]
 dev = [
-    "ipython>=9.6.0",
+    "pre-commit>=4.3.0",
+    "psutil>=7.0.0",
+    "pyright>=1.1.405",
+    "ruff>=0.12.10",
+    "pycodestyle>=2.12.0",
 ]
-
-[tool.uv.sources]
-torch = { index = "pytorch-cu128" }
-torchvision = { index = "pytorch-cu128" }
 
 [tool.uv]
 override-dependencies = [
@@ -66,5 +70,18 @@ explicit = true
 [tool.uv.extra-build-dependencies]
 flash-attn = ["torch"]
 
-[tool.setuptools.packages.find]
-include = ["rca/*"]
+[tool.uv.sources]
+openhands-sdk = { workspace = true }
+openhands-tools = { workspace = true }
+openhands-workspace = { workspace = true }
+openhands-agent-server = { workspace = true }
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
+
+[tool.uv.workspace]
+members = [
+  "agent-sdk/openhands-sdk",
+  "agent-sdk/openhands-tools",
+  "agent-sdk/openhands-workspace",
+  "agent-sdk/openhands-agent-server",
+]

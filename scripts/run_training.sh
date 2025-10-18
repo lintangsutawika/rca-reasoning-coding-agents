@@ -13,7 +13,11 @@ done
 MODEL_ALIAS=$(echo $MODEL | sed 's/\//-/g')
 # Get number of GPUs available
 NUM_GPUS=$(nvidia-smi -L | wc -l)
+<<<<<<< HEAD
 N_ROLLOUTS="${N_ROLLOUTS:-8}"
+=======
+N_ROLLOUTS="${N_ROLLOUTS:-4}"
+>>>>>>> ae7c2f7 (add all)
 MAX_LENGTH=8192
 RUN_NAME="openhands_${MODEL_ALIAS}"
 set -x
@@ -48,7 +52,11 @@ uv run --isolated -m rca.train \
   trainer.placement.ref_num_gpus_per_node=$NUM_GPUS \
   trainer.placement.policy_num_nodes=$NNODES \
   trainer.placement.ref_num_nodes=$NNODES \
+<<<<<<< HEAD
   trainer.policy.sequence_parallel_size=2 \
+=======
+  trainer.policy.sequence_parallel_size=$NUM_GPUS \
+>>>>>>> ae7c2f7 (add all)
   generator.num_inference_engines=$NUM_INFERENCE_ENGINES \
   generator.inference_engine_tensor_parallel_size=$TP_SIZE \
   +generator.traj_dir=$CKPT_PATH/trajectories/ \
@@ -57,10 +65,17 @@ uv run --isolated -m rca.train \
   trainer.eval_before_train=false \
   trainer.eval_interval=5 \
   trainer.update_epochs_per_batch=1 \
+<<<<<<< HEAD
   trainer.train_batch_size=16 \
   trainer.policy_mini_batch_size=4 \
   trainer.micro_forward_batch_size_per_gpu=1 \
   trainer.micro_train_batch_size_per_gpu=1 \
+=======
+  trainer.train_batch_size=8 \
+  trainer.policy_mini_batch_size=8 \
+  trainer.micro_forward_batch_size_per_gpu=4 \
+  trainer.micro_train_batch_size_per_gpu=2 \
+>>>>>>> ae7c2f7 (add all)
   trainer.dump_data_batch=true \
   trainer.ckpt_interval=10 \
   trainer.max_prompt_length=4096 \

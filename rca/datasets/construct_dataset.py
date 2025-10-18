@@ -3,33 +3,60 @@ from datasets import load_dataset
 
 trajectory_path = "neulab/agent-data-collection"
 trajectory_name = "SWE-smith_5kTrajectories"
+<<<<<<< HEAD
 trajectory_data = load_dataset(trajectory_path, trajectory_name, split="train").to_pandas()
+=======
+trajectory_data = load_dataset(
+    trajectory_path, trajectory_name, split="train"
+).to_pandas()
+
+>>>>>>> ae7c2f7 (add all)
 
 # regex function that captures string between <X= and >
 def parse_action(response):
     function_format = r"<function=(.*?)>(.*?)</function>"
     function_matched = re.search(function_format, response, re.DOTALL)
+<<<<<<< HEAD
     
     if function_matched:
         function_name = function_matched.group(1)
         function_param_string = function_matched.group(2).strip()
         
+=======
+
+    if function_matched:
+        function_name = function_matched.group(1)
+        function_param_string = function_matched.group(2).strip()
+
+>>>>>>> ae7c2f7 (add all)
         param_format = r"<parameter=(.*?)>(.*?)</parameter>"
         param_matched = re.findall(param_format, function_param_string, re.DOTALL)
         if param_matched:
             params = {name: value.strip() for name, value in param_matched}
         else:
             params = {}
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> ae7c2f7 (add all)
         return function_name, params
     else:
         return None, {}
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> ae7c2f7 (add all)
 def get_function(traj):
     for step in traj["conversations"]:
         if step["from"] == "gpt":
             response = step["value"]
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> ae7c2f7 (add all)
 # Input, system_message + state, output-> <think>...</think> + action
 # parse_action(response)
 # reward correct function,
@@ -45,4 +72,8 @@ response = """
 
 function, params = parse_action(response)
 print(f"Function: {function}")
+<<<<<<< HEAD
 print(f"Parameters: {params}")
+=======
+print(f"Parameters: {params}")
+>>>>>>> ae7c2f7 (add all)
