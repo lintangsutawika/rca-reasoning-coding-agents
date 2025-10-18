@@ -24,11 +24,7 @@ from minisweagent.run.extra.utils.batch_progress import RunBatchProgressManager
 from minisweagent.run.utils.save import save_traj
 from minisweagent.utils.log import add_file_handler, logger
 
-<<<<<<< HEAD
-from rca.utils.mini_swe import evaluate_trajectory, get_environment
-=======
 from rca.utils.mini_swe import get_environment
->>>>>>> ae7c2f7 (add all)
 
 _HELP_TEXT = """Run mini-SWE-agent on SWEBench instances.
 
@@ -56,9 +52,6 @@ _OUTPUT_FILE_LOCK = threading.Lock()
 class ProgressTrackingAgent(DefaultAgent):
     """Simple wrapper around DefaultAgent that provides progress updates."""
 
-<<<<<<< HEAD
-    def __init__(self, *args, progress_manager: RunBatchProgressManager, instance_id: str = "", **kwargs):
-=======
     def __init__(
         self,
         *args,
@@ -66,7 +59,6 @@ class ProgressTrackingAgent(DefaultAgent):
         instance_id: str = "",
         **kwargs,
     ):
->>>>>>> ae7c2f7 (add all)
         super().__init__(*args, **kwargs)
         self.progress_manager: RunBatchProgressManager = progress_manager
         self.instance_id = instance_id
@@ -74,13 +66,6 @@ class ProgressTrackingAgent(DefaultAgent):
     def step(self) -> dict:
         """Override step to provide progress updates."""
         self.progress_manager.update_instance_status(
-<<<<<<< HEAD
-            self.instance_id, f"Step {self.model.n_calls + 1:3d} (${self.model.cost:.2f})"
-        )
-        return super().step()
-
-def update_preds_file(output_path: Path, instance_id: str, model_name: str, result: str):
-=======
             self.instance_id,
             f"Step {self.model.n_calls + 1:3d} (${self.model.cost:.2f})",
         )
@@ -90,7 +75,6 @@ def update_preds_file(output_path: Path, instance_id: str, model_name: str, resu
 def update_preds_file(
     output_path: Path, instance_id: str, model_name: str, result: str
 ):
->>>>>>> ae7c2f7 (add all)
     """Update the output JSON file with results from a single instance."""
     with _OUTPUT_FILE_LOCK:
         output_data = {}
@@ -171,26 +155,18 @@ def process_instance(
             instance_id=instance_id,
             print_fct=logger.info,
         )
-<<<<<<< HEAD
-        update_preds_file(output_dir / "preds.json", instance_id, model.config.model_name, result)
-=======
         update_preds_file(
             output_dir / "preds.json", instance_id, model.config.model_name, result
         )
->>>>>>> ae7c2f7 (add all)
         progress_manager.on_instance_end(instance_id, exit_status)
 
 
 def filter_instances(
-<<<<<<< HEAD
-    instances: list[dict], *, filter_spec: str, slice_spec: str = "", shuffle: bool = False
-=======
     instances: list[dict],
     *,
     filter_spec: str,
     slice_spec: str = "",
     shuffle: bool = False,
->>>>>>> ae7c2f7 (add all)
 ) -> list[dict]:
     """Filter and slice a list of SWEBench instances."""
     if shuffle:
@@ -198,15 +174,11 @@ def filter_instances(
         random.seed(42)
         random.shuffle(instances)
     before_filter = len(instances)
-<<<<<<< HEAD
-    instances = [instance for instance in instances if re.match(filter_spec, instance["instance_id"])]
-=======
     instances = [
         instance
         for instance in instances
         if re.match(filter_spec, instance["instance_id"])
     ]
->>>>>>> ae7c2f7 (add all)
     if (after_filter := len(instances)) != before_filter:
         logger.info(f"Instance filter: {before_filter} -> {after_filter} instances")
     if slice_spec:
@@ -292,8 +264,4 @@ def main(
 
 
 if __name__ == "__main__":
-<<<<<<< HEAD
     app()
-=======
-    app()
->>>>>>> ae7c2f7 (add all)

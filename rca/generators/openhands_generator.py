@@ -2,23 +2,10 @@ import json
 import asyncio
 from typing import Dict, List, Optional, Any, Tuple
 from omegaconf import DictConfig
-<<<<<<< HEAD
-import yaml
-=======
->>>>>>> ae7c2f7 (add all)
 import traceback
 import ray
 import requests
 from pathlib import Path
-<<<<<<< HEAD
-import random
-import os
-import ast
-# from minisweagent.run.utils.save import save_traj
-from rca.utils.mini_swe import evaluate_trajectory, get_sb_environment, get_docker_image_name
-
-from skyrl_train.generators.skyrl_gym_generator import SkyRLGymGenerator, GeneratorOutput, GeneratorInput
-=======
 import os
 import ast
 
@@ -33,7 +20,6 @@ from skyrl_train.generators.skyrl_gym_generator import (
     GeneratorOutput,
     GeneratorInput,
 )
->>>>>>> ae7c2f7 (add all)
 from skyrl_train.generators.base import TrajectoryID, TrainingPhase, BatchMetadata
 from skyrl_train.inference_engines.base import ConversationType
 from skyrl_train.inference_engines.inference_engine_client import InferenceEngineClient
@@ -43,10 +29,6 @@ from skyrl_train.generators.utils import (
     encode_messages_subset,
 )
 
-<<<<<<< HEAD
-from pydantic import SecretStr
-=======
->>>>>>> ae7c2f7 (add all)
 
 from openhands.workspace import DockerWorkspace
 from openhands.tools.preset.default import get_default_tools
@@ -55,36 +37,19 @@ from openhands.sdk import (
     LLM,
     Conversation,
     RemoteConversation,
-<<<<<<< HEAD
-    Event,
-    Message,
-    TextContent,
-    LLMConvertibleEvent,
     get_logger,
 )
 
-from rca.utils.mini_swe import get_docker_image_name
-=======
-    get_logger,
-)
-
->>>>>>> ae7c2f7 (add all)
 import logging
 
 logger = get_logger(__name__)
 # logger.setLevel(logging.WARNING)
 logger.setLevel(logging.ERROR)
 
-<<<<<<< HEAD
-public_ip = requests.get('https://api.ipify.org').text
-print(f"Public IP: {public_ip}")
-
-=======
 public_ip = requests.get("https://api.ipify.org").text
 print(f"Public IP: {public_ip}")
 
 
->>>>>>> ae7c2f7 (add all)
 @ray.remote(num_cpus=0.01)
 def init_and_run(
     instance: dict,
@@ -100,49 +65,25 @@ def init_and_run(
     from loguru import logger
 
     agent = None
-    env = None
-    extra_info = None
     result = None
     reward = 0
     error = None
     messages = []
     full_messages = []
-<<<<<<< HEAD
-
     working_dir = "/testbed"
-    def conversation_callback(event: Event):
-        # print("HERE Event", event, type(event))
-        if isinstance(event, LLMConvertibleEvent):
-            messages.append(event.to_llm_message())
-=======
-    working_dir = "/testbed"
->>>>>>> ae7c2f7 (add all)
 
     try:
         print("data_source", data_source)
         image_name = get_docker_image_name(instance, data_source=data_source)
         print("image_name", image_name)
         with DockerWorkspace(
-<<<<<<< HEAD
-            # base_image="nikolaik/python-nodejs:python3.12-nodejs22",
-            # server_image="ghcr.io/all-hands-ai/agent-server:latest-python",
-=======
->>>>>>> ae7c2f7 (add all)
             base_image=image_name,
             host_port=None,
             detach_logs=False,
             working_dir=working_dir,
-<<<<<<< HEAD
-            platform="linux/amd64", # "linux/arm64"
-            # forward_env=["AGENT_SDK_PATH", "API_KEY", "LLM_API_KEY", "OPENAI_API_KEY"],  # Forward API key to container
-            forward_env=["AGENT_SDK_PATH"],  # Forward API key to container
-        ) as workspace:
-
-=======
             platform="linux/amd64",  # "linux/arm64"
             forward_env=["AGENT_SDK_PATH"],  # Forward API key to container
         ) as workspace:
->>>>>>> ae7c2f7 (add all)
             cli_mode = True
             agent = Agent(
                 llm=LLM(
@@ -162,13 +103,7 @@ def init_and_run(
             conversation = Conversation(
                 agent=agent,
                 workspace=workspace,
-<<<<<<< HEAD
-                callbacks=[conversation_callback],
                 visualize=False,
-                # visualize=True,
-=======
-                visualize=False,
->>>>>>> ae7c2f7 (add all)
             )
             assert isinstance(conversation, RemoteConversation)
             try:
@@ -178,45 +113,6 @@ def init_and_run(
             except Exception as e:
                 logger.error(f"Error is sending conversation: {e}", exc_info=True)
             finally:
-<<<<<<< HEAD
-                workspace_result = workspace.execute_command("git add -A && git diff --cached", cwd=working_dir)
-                conversation.close()
-                logger.info("Conversation Finished")
-
-        print("workspace_result")
-        print(workspace_result)
-        result = workspace_result.stdout
-        print("Final git diff --cached result:")
-        print(result)
-        print("=" * 100)
-        print("Conversation finished. Got the following LLM messages:")
-        for i, message in enumerate(messages):
-            print(f"Message {i}: {str(message)[:250]}")
-        # import sys; sys.exit()
-
-        for idx, message in enumerate(messages):
-            full_text = ""
-            if message.role == "assistant":
-                if message.content is not None and len(message.content) > 0:
-                    full_text += message.content[0].text
-
-                if message.tool_calls is not None and len(message.tool_calls) > 0:
-                    tool_name = message.tool_calls[0].name
-                    tool_args = ast.literal_eval(message.tool_calls[0].arguments)
-                    if tool_name == "finish":
-                        full_text += tool_args["message"]
-                    else:
-                        full_text += "\n\n" + f"<function={tool_name}>"
-                        for k, v in tool_args.items():
-                            full_text += f"\n<parameter={k}>{v}</parameter>\n"
-                        full_text += f"</function>\n"
-            else:
-                full_text += message.content[0].text
-            full_messages.append({"role": message.role, "text": full_text})
-
-    except Exception as e:
-        logger.error(f"Error processing instance {instance['instance_id']}: {e}", exc_info=True)
-=======
                 workspace_result = workspace.execute_command(
                     "git add -A && git diff --cached", cwd=working_dir
                 )
@@ -240,10 +136,9 @@ def init_and_run(
         logger.error(
             f"Error processing instance {instance['instance_id']}: {e}", exc_info=True
         )
->>>>>>> ae7c2f7 (add all)
-        exit_status, result = type(e).__name__, str(e)
+        # exit_status, result = type(e).__name__, str(e)
         error = str(e)
-        extra_info = {"traceback": traceback.format_exc()}
+        # extra_info = {"traceback": traceback.format_exc()}
     finally:
         # Create trajectory directory with proper structure: step_{global_step}/{train/eval}
         path = Path(generator_cfg.traj_dir) / f"step_{global_step}" / training_phase
@@ -254,9 +149,6 @@ def init_and_run(
         path = path / filename
         eval_error = None
         try:
-<<<<<<< HEAD
-            result = evaluate_trajectory(instance, result, {"cwd": working_dir}, data_source)
-=======
             # with 5 minutes timeout
             result = asyncio.wait_for(
                 asyncio.to_thread(
@@ -268,7 +160,6 @@ def init_and_run(
                 ),
                 timeout=300,  # 5 minutes = 300 seconds
             )
->>>>>>> ae7c2f7 (add all)
             reward = int(result["resolved"])
             eval_error = result["eval_error"]
             if eval_error:
@@ -285,11 +176,7 @@ def init_and_run(
             f.writelines(json.dumps(msg) + "\n" for msg in full_messages)
         # save_traj(agent, path, exit_status=exit_status, result=result, extra_info=extra_info, reward=reward, eval_error=eval_error)  # type: ignore[arg-type]
     print("Evaluation result:", str(result))
-<<<<<<< HEAD
-    return (full_messages, reward, error)
-=======
     return (messages, reward, error)
->>>>>>> ae7c2f7 (add all)
 
 
 class OpenhandsGenerator(SkyRLGymGenerator):
@@ -301,16 +188,10 @@ class OpenhandsGenerator(SkyRLGymGenerator):
         tokenizer,
         model_name: str,
     ):
-<<<<<<< HEAD
-
-        # Call parent constructor first
-        super().__init__(generator_cfg, skyrl_gym_cfg, inference_engine_client, tokenizer, model_name)
-=======
         # Call parent constructor first
         super().__init__(
             generator_cfg, skyrl_gym_cfg, inference_engine_client, tokenizer, model_name
         )
->>>>>>> ae7c2f7 (add all)
 
         self.http_server_inference_engine_client_host = generator_cfg.get(
             "http_server_inference_engine_client_host", "127.0.0.1"
@@ -318,13 +199,7 @@ class OpenhandsGenerator(SkyRLGymGenerator):
         self.http_server_inference_engine_client_port = generator_cfg.get(
             "http_server_inference_engine_client_port", 8000
         )
-<<<<<<< HEAD
-        self.base_url = (
-            f"http://{self.http_server_inference_engine_client_host}:{self.http_server_inference_engine_client_port}"
-        )
-=======
         self.base_url = f"http://{self.http_server_inference_engine_client_host}:{self.http_server_inference_engine_client_port}"
->>>>>>> ae7c2f7 (add all)
         self.generator_cfg = generator_cfg
         self.tokenizer = tokenizer
         self.model_name = model_name
@@ -332,13 +207,9 @@ class OpenhandsGenerator(SkyRLGymGenerator):
         self.litellm_model_name = "hosted_vllm/" + self.model_name
 
         if self.generator_cfg.chat_template.name_or_path is not None:
-<<<<<<< HEAD
-            raise NotImplementedError("OpenhandsGenerator doesn't support custom chat template")
-=======
             raise NotImplementedError(
                 "OpenhandsGenerator doesn't support custom chat template"
             )
->>>>>>> ae7c2f7 (add all)
 
     async def openhands_agent_loop(
         self,
@@ -350,10 +221,6 @@ class OpenhandsGenerator(SkyRLGymGenerator):
         trajectory_id: TrajectoryID,
         batch_metadata: BatchMetadata,
     ) -> Tuple[List[int], float, str, List[int], List[int], Optional[List[int]]]:
-<<<<<<< HEAD
-
-=======
->>>>>>> ae7c2f7 (add all)
         # sweagent_config = yaml.safe_load(get_config_path(self.generator_cfg.miniswe_config_path).read_text())
         # NOTE (sumanthrh): Input `prompt` is not used here because mini-swe-agent uses a similar entry from the `instance` obj
         instance = env_extras["instance"]
@@ -379,9 +246,6 @@ class OpenhandsGenerator(SkyRLGymGenerator):
             {"role": "user", "content": instance["problem_statement"]},
         ]
 
-<<<<<<< HEAD
-        initial_input_ids = self.tokenizer.apply_chat_template(input_prompt, add_generation_prompt=False, tokenize=True)
-=======
         input_prompt = [messages[:2]]
 
         for idx, message in enumerate(messages):
@@ -402,12 +266,10 @@ class OpenhandsGenerator(SkyRLGymGenerator):
                         full_text += "</function>\n"
             else:
                 full_text += message.content[0].text
-            full_messages.append({"role": message.role, "text": full_text})
 
         initial_input_ids = self.tokenizer.apply_chat_template(
             input_prompt, add_generation_prompt=False, tokenize=True
         )
->>>>>>> ae7c2f7 (add all)
         initial_prompt_length = len(initial_input_ids)
 
         response_ids: List[int] = []
@@ -484,13 +346,9 @@ class OpenhandsGenerator(SkyRLGymGenerator):
         rewards = [output[1] for output in all_outputs if output[0] is not None]
         stop_reasons = [output[2] for output in all_outputs if output[0] is not None]
         loss_masks = [output[3] for output in all_outputs if output[0] is not None]
-<<<<<<< HEAD
-        prompt_token_ids = [output[4] for output in all_outputs if output[0] is not None]
-=======
         prompt_token_ids = [
             output[4] for output in all_outputs if output[0] is not None
         ]
->>>>>>> ae7c2f7 (add all)
         if not len(responses):
             raise ValueError(
                 "Found no valid responses for this step. This means that generation failed for all trajectories, likely due to errors in environment setup."
