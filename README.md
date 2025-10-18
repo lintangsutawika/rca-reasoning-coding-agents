@@ -11,8 +11,6 @@ cd rca-reasoning-coding-agents
 git clone https://github.com/All-Hands-AI/OpenHands.git
 cp custom_openhands/system_prompt.j2 agent-sdk/openhands/sdk/agent/prompts/
 cp custom_openhands/Dockerfile agent-sdk/openhands/agent_server/docker/
-
-export $PWD/agent-sdk/
 ```
 
 ### Dataset Preperation
