@@ -80,8 +80,8 @@ torchvision = { index = "pytorch-cu128" }
 
 [tool.uv.workspace]
 members = [
-  "submodules/agent-sdk/openhands/sdk",
-  "submodules/agent-sdk/openhands/tools",
-  "submodules/agent-sdk/openhands/workspace",
-  "submodules/agent-sdk/openhands/agent_server",
+  "vendor/agent-sdk/openhands/sdk",
+  "vendor/agent-sdk/openhands/tools",
+  "vendor/agent-sdk/openhands/workspace",
+  "vendor/agent-sdk/openhands/agent_server",
 ]
