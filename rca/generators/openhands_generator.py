@@ -76,9 +76,6 @@ def timeout(seconds):
     finally:
         signal.alarm(0)
 
-
-
-
 @ray.remote(num_cpus=0.01)
 def init_and_run(
     instance: dict,
@@ -98,21 +95,24 @@ def init_and_run(
     reward = 0
     error = None
     eval_error = None
+    messages = []
     working_dir = "/testbed"
 
     try:
         print("data_source", data_source)
         repo_path = f"/workspace/{instance['repo'].split('/')[-1]}/"
         image_name = get_docker_image_name(instance, data_source=data_source)
-        server_image = get_agent_server_docker_image(image_name)
-        _, tag = server_image.split(":")
+        image_source = "lintangsutawika/agent-swe-smith"
+        server_image = get_agent_server_docker_image(image_source, image_name)
+        print("server_image", server_image)
+
         # server_image = f"lintangsutawika/agent-swe-smith:{tag}"
         # server_image = "lintangsutawika/agent-swe-smith:f452e14-swesmith.x86_64.facebookresearch_1776_fvcore.a491d5-8f79900eecbd-source-minimal"
         # server_image = "ghcr.io/openhands/eval-agent-server:056e8bf-sweb.eval.x86_64.astropy_1776_astropy-13033-source-minimal"
         # server_image = "ghcr.io/openhands/eval-agent-server:buildcache-source-minimal-sweb.eval.x86_64.pylint-dev_1776_pylint-4661_tag_la-199ccadc9923-xw-remote-runtime"
         # server_image = "ghcr.io/openhands/agent-server:c86e42d-python"
-        server_image="ghcr.io/openhands/eval-agent-server:cc121b5-sweb.eval.x86_64.sympy_1776_sympy-13615-source-minimal"
-        print("image_name", image_name)
+        # server_image="ghcr.io/openhands/eval-agent-server:cc121b5-sweb.eval.x86_64.sympy_1776_sympy-13615-source-minimal"
+        # print("image_name", image_name)
         # with DockerWorkspace(
         #     # base_image=image_name,
         #     # image="ghcr.io/all-hands-ai/agent-server",
@@ -169,11 +169,6 @@ def init_and_run(
             #     api_key=api_key,
             # )
 
-            listener = ngrok.forward(
-                addr=litellm_base_url,
-                authtoken=os.getenv("NGROK_KEY")
-            )
-
             agent = Agent(
                 # llm=llm,
                 llm=LLM(
@@ -181,7 +176,7 @@ def init_and_run(
                     model=litellm_model_name,
                     # base_url="http://host.docker.internal:8080/v1/",
                     # base_url=f"http://{public_ip}:8080/v1/",
-                    base_url=f"{listener.url()}/v1/",
+                    base_url=litellm_base_url,
                     api_key=os.getenv("API_KEY"),
                     litellm_extra_body={
                         "return_token_ids": True,
@@ -198,7 +193,7 @@ def init_and_run(
                 agent=agent,
                 workspace=workspace,
                 # callbacks=[conversation_callback],
-                max_iteration_per_run=20,
+                max_iteration_per_run=10,
                 stuck_detection=True,
                 visualizer=None,
             )
@@ -213,7 +208,7 @@ def init_and_run(
             # except Exception as e:
             #     logger.error(f"Error is sending conversation: {e}", exc_info=True)
             # finally:
-            messages = list(map(lambda event: event.model_dump(), conversation.state.events))            
+            messages = list(map(lambda event: event.model_dump(), conversation.state.events))
             workspace_result = workspace.execute_command(
                 "git diff HEAD", cwd=repo_path
             )
@@ -350,7 +345,7 @@ class OpenhandsGenerator(SkyRLGymGenerator):
         self.http_server_inference_engine_client_port = generator_cfg.get(
             "http_server_inference_engine_client_port", 8000
         )
-        self.base_url = f"http://{self.http_server_inference_engine_client_host}:{self.http_server_inference_engine_client_port}"
+        base_url = f"http://{self.http_server_inference_engine_client_host}:{self.http_server_inference_engine_client_port}"
         self.generator_cfg = generator_cfg
         self.tokenizer = tokenizer
         self.model_name = model_name
@@ -361,6 +356,12 @@ class OpenhandsGenerator(SkyRLGymGenerator):
             raise NotImplementedError(
                 "OpenhandsGenerator doesn't support custom chat template"
             )
+
+        listener = ngrok.forward(
+                addr=base_url,
+                authtoken=os.getenv("NGROK_KEY")
+            )
+        self.base_url = f"{listener.url()}/v1/"
 
     async def openhands_agent_loop(
         self,
