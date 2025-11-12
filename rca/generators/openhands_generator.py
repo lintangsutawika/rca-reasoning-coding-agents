@@ -272,55 +272,6 @@ def init_and_run(
             with open(os.path.join(path, f"train_traj_{instance_id}_{trajectory_id.repetition_id}.diff"), "w") as f:
                 f.write(patch)
 
-        # if error is not None:
-        #     with open(os.path.join(path, f"train_traj_{instance_id}_{trajectory_id.repetition_id}.error"), "w") as f:
-        #         f.write(error)
-
-        # with open(os.path.join(path, f"train_traj_{instance_id}_{trajectory_id.repetition_id}.reward"), "w") as f:
-        #     reward_dict = {
-        #         "reward": reward,
-        #         "detailed_result": result,
-        #     }
-        #     f.writelines(json.dumps(reward_dict))
-
-    # with open(os.path.join(path, f"train_traj_{instance_id}_{trajectory_id.repetition_id}_unprocessed.jsonl"), "w") as f:
-    #     f.writelines(str(msg) + "\n" for msg in messages)
-
-    # processed_messages = [
-    #     system_messages,
-    #     {"role": "user", "content": instance["problem_statement"]},
-    # ]
-    # for idx, message in enumerate(messages):
-    #     full_text = ""
-    #     try:
-    #         if message.role == "assistant":
-    #             role = "assistant"
-    #             if len(message.content) != 0:
-    #                 full_text += message.content[0].text
-    #             if len(message.tool_calls) != 0:
-    #                 tool_name = message.tool_calls[0].name
-    #                 tool_args = ast.literal_eval(message.tool_calls[0].arguments)
-    #                 if tool_name == "finish":
-    #                     full_text += tool_args["message"]
-    #                     break
-    #                 else:
-    #                     full_text += "\n\n" + f"<function={tool_name}>"
-    #                     for k, v in tool_args.items():
-    #                         full_text += f"\n<parameter={k}>{v}</parameter>\n"
-    #                     full_text += "</function>\n"
-    #         elif message.role == "tool":
-    #             role = "user"
-    #             if len(message.content) != 0:
-    #                 full_text += message.content[0].text
-    #         else:
-    #             continue
-    #     except Exception as e:
-    #         # print("message", message)
-    #         logger.error(f"Error processing message {idx}: {e}", exc_info=True)
-    #         continue
-
-    #     processed_messages.append({"role": role, "content": full_text})
-
     print("Evaluation result:", reward)
     return (messages, reward, error)
 
