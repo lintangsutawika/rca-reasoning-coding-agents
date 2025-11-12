@@ -98,16 +98,7 @@ def init_and_run(
     reward = 0
     error = None
     eval_error = None
-    messages = []
-    full_messages = []
     working_dir = "/testbed"
-
-    messages = []
-    def conversation_callback(event: Event):
-        # if isinstance(event, LLMConvertibleEvent):
-        if isinstance(event, TokenEvent):
-            # messages.append(event.to_llm_message())
-            messages.append(event)
 
     try:
         print("data_source", data_source)
@@ -117,7 +108,10 @@ def init_and_run(
         _, tag = server_image.split(":")
         # server_image = f"lintangsutawika/agent-swe-smith:{tag}"
         # server_image = "lintangsutawika/agent-swe-smith:f452e14-swesmith.x86_64.facebookresearch_1776_fvcore.a491d5-8f79900eecbd-source-minimal"
-        server_image = "ghcr.io/openhands/eval-agent-server:056e8bf-sweb.eval.x86_64.astropy_1776_astropy-13033-source-minimal"
+        # server_image = "ghcr.io/openhands/eval-agent-server:056e8bf-sweb.eval.x86_64.astropy_1776_astropy-13033-source-minimal"
+        # server_image = "ghcr.io/openhands/eval-agent-server:buildcache-source-minimal-sweb.eval.x86_64.pylint-dev_1776_pylint-4661_tag_la-199ccadc9923-xw-remote-runtime"
+        # server_image = "ghcr.io/openhands/agent-server:c86e42d-python"
+        server_image="ghcr.io/openhands/eval-agent-server:cc121b5-sweb.eval.x86_64.sympy_1776_sympy-13615-source-minimal"
         print("image_name", image_name)
         # with DockerWorkspace(
         #     # base_image=image_name,
@@ -134,7 +128,6 @@ def init_and_run(
             target_type="source",
         ) as workspace:
             
-            print(workspace.execute_command("whoami").stdout)
             instance["repo_path"] = repo_path
             logger.info(f"repo_path: {repo_path}")
             cp_testebed_repo = workspace.execute_command(
@@ -204,7 +197,7 @@ def init_and_run(
             conversation = Conversation(
                 agent=agent,
                 workspace=workspace,
-                callbacks=[conversation_callback],
+                # callbacks=[conversation_callback],
                 max_iteration_per_run=20,
                 stuck_detection=True,
                 visualizer=None,
@@ -220,13 +213,18 @@ def init_and_run(
             # except Exception as e:
             #     logger.error(f"Error is sending conversation: {e}", exc_info=True)
             # finally:
-            # messages = list(map(lambda event: event.model_dump(), conversation.state.events))
+            messages = list(map(lambda event: event.model_dump(), conversation.state.events))            
             workspace_result = workspace.execute_command(
                 "git diff HEAD", cwd=repo_path
             )
             patch = workspace_result.stdout
             conversation.close()
             logger.info("Conversation Finished")
+
+            print("=" * 100)
+            print("Conversation finished. Got the following LLM messages:")
+            for i, message in enumerate(messages):
+                print(f"Message {i}: {str(message)[:250]}")
 
             # Reward if a patch is generated
             if patch.startswith("diff --git"):
@@ -265,24 +263,23 @@ def init_and_run(
         # path = path / filename
 
         result_dict = {
-            "reward_dict": {
-                "reward": reward,
-                "detailed_result": result,
-            },
+            "reward": reward,
+            "detailed_result": result,
+            "error": error,
+            "patch": patch,
             "messages": messages,
         }
 
         with open(os.path.join(path, f"train_traj_{instance_id}_{trajectory_id.repetition_id}.json"), "w") as f:
-            # f.writelines(json.dumps(msg) + "\n" for msg in messages)
-            json.dump(result_dict, f, indent=2) #, sort_keys=True, ensure_ascii=False)
+            json.dump(result_dict, f, indent=2)
 
         if patch.startswith("diff --git"):
             with open(os.path.join(path, f"train_traj_{instance_id}_{trajectory_id.repetition_id}.diff"), "w") as f:
                 f.write(patch)
 
-        if error is not None:
-            with open(os.path.join(path, f"train_traj_{instance_id}_{trajectory_id.repetition_id}.error"), "w") as f:
-                f.write(error)
+        # if error is not None:
+        #     with open(os.path.join(path, f"train_traj_{instance_id}_{trajectory_id.repetition_id}.error"), "w") as f:
+        #         f.write(error)
 
         # with open(os.path.join(path, f"train_traj_{instance_id}_{trajectory_id.repetition_id}.reward"), "w") as f:
         #     reward_dict = {
@@ -290,11 +287,6 @@ def init_and_run(
         #         "detailed_result": result,
         #     }
         #     f.writelines(json.dumps(reward_dict))
-
-        print("=" * 100)
-        print("Conversation finished. Got the following LLM messages:")
-        for i, message in enumerate(messages):
-            print(f"Message {i}: {str(message)[:250]}")
 
     # with open(os.path.join(path, f"train_traj_{instance_id}_{trajectory_id.repetition_id}_unprocessed.jsonl"), "w") as f:
     #     f.writelines(str(msg) + "\n" for msg in messages)
@@ -333,8 +325,6 @@ def init_and_run(
     #         continue
 
     #     processed_messages.append({"role": role, "content": full_text})
-
-
 
     print("Evaluation result:", reward)
     return (messages, reward, error)
