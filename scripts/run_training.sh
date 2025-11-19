@@ -1,4 +1,17 @@
-. ./config_env/.env
+#!/bin/bash
+#SBATCH --job-name=rca
+#SBATCH --output=../logs/%j.out
+#SBATCH --error=../logs/%j.out
+#SBATCH --partition=general
+#SBATCH --gres=gpu:L40S:8
+#SBATCH --nodes=1
+#SBATCH --time=2-00:00:00
+#SBATCH --mem=512G
+#SBATCH --cpus-per-task=32
+#SBATCH --ntasks-per-node=1
+#SBATCH --exclude=babel-q5-28,babel-o5-20,babel-n5-28,babel-q5-24,babel-p5-20,babel-q5-20,babel-q5-32
+
+. .env
 
 while getopts ":m:n:d:s:" opt; do
   case ${opt} in
@@ -13,7 +26,7 @@ done
 MODEL_ALIAS=$(echo $MODEL | sed 's/\//-/g')
 # Get number of GPUs available
 NUM_GPUS=$(nvidia-smi -L | wc -l)
-N_ROLLOUTS="${N_ROLLOUTS:-4}"
+N_ROLLOUTS="${N_ROLLOUTS:-2}"
 MAX_LENGTH=8192
 RUN_NAME="openhands_${MODEL_ALIAS}"
 set -x
@@ -31,7 +44,7 @@ DATA_PATH="${DATA_PATH:-data/swe_smith}"
 CKPT_PATH="${CKPT_PATH:-ckpts/${MODEL_ALIAS}}"
 
 NNODES=1
-NUM_INFERENCE_ENGINES=4
+NUM_INFERENCE_ENGINES=8
 TP_SIZE=1
 LOGGER=wandb
 
@@ -41,6 +54,8 @@ uv run --isolated -m rca.train \
   data.train_data="['$DATA_PATH/train.parquet']" \
   data.val_data="['$DATA_PATH/validation.parquet']" \
   trainer.algorithm.advantage_estimator="grpo" \
+  trainer.algorithm.use_kl_loss=false \
+  trainer.algorithm.use_kl_in_reward=false \
   trainer.policy.model.path=${MODEL} \
   trainer.placement.colocate_all=true \
   trainer.strategy=fsdp2 \
@@ -48,19 +63,20 @@ uv run --isolated -m rca.train \
   trainer.placement.ref_num_gpus_per_node=$NUM_GPUS \
   trainer.placement.policy_num_nodes=$NNODES \
   trainer.placement.ref_num_nodes=$NNODES \
-  trainer.policy.sequence_parallel_size=$NUM_GPUS \
+  trainer.policy.sequence_parallel_size=2 \
   generator.num_inference_engines=$NUM_INFERENCE_ENGINES \
   generator.inference_engine_tensor_parallel_size=$TP_SIZE \
   +generator.traj_dir=$CKPT_PATH/trajectories/ \
+  +generator.engine_init_kwargs="{enable_auto_tool_choice:true,tool_call_parser:hermes,max_model_len:100000}" \
   trainer.epochs=20 \
   trainer.eval_batch_size=50 \
   trainer.eval_before_train=false \
   trainer.eval_interval=5 \
   trainer.update_epochs_per_batch=1 \
-  trainer.train_batch_size=8 \
-  trainer.policy_mini_batch_size=8 \
-  trainer.micro_forward_batch_size_per_gpu=4 \
-  trainer.micro_train_batch_size_per_gpu=2 \
+  trainer.train_batch_size=4 \
+  trainer.policy_mini_batch_size=4 \
+  trainer.micro_forward_batch_size_per_gpu=1 \
+  trainer.micro_train_batch_size_per_gpu=1 \
   trainer.dump_data_batch=true \
   trainer.ckpt_interval=10 \
   trainer.max_prompt_length=4096 \
@@ -68,7 +84,6 @@ uv run --isolated -m rca.train \
   generator.max_input_length=30720 \
   generator.max_turns=20 \
   trainer.policy.optimizer_config.lr=1.0e-6 \
-  trainer.algorithm.use_kl_loss=true \
   generator.backend=vllm \
   generator.run_engines_locally=True \
   generator.enable_http_endpoint=True \
@@ -78,7 +93,7 @@ uv run --isolated -m rca.train \
   generator.async_engine=true \
   generator.batched=true \
   generator.n_samples_per_prompt=${N_ROLLOUTS} \
-  generator.gpu_memory_utilization=0.8 \
+  generator.gpu_memory_utilization=0.80 \
   trainer.logger="$LOGGER" \
   trainer.project_name="rca" \
   trainer.run_name=${RUN_NAME} \
