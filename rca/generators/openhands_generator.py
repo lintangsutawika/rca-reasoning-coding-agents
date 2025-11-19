@@ -58,8 +58,8 @@ logger = get_logger(__name__)
 # logger.setLevel(logging.WARNING)
 logger.setLevel(logging.ERROR)
 
-public_ip = requests.get("https://api.ipify.org").text
-print(f"Public IP: {public_ip}")
+# public_ip = requests.get("https://api.ipify.org").text
+# print(f"Public IP: {public_ip}")
 
 import ngrok
 
@@ -100,7 +100,7 @@ def init_and_run(
 
     try:
         print("data_source", data_source)
-        repo_path = f"/workspace/{instance['repo'].split('/')[-1]}/"
+        repo_path = f"/workspace/{instance['repo'].split('/')[-1]}_{global_step}_{trajectory_id.repetition_id}/"
         image_name = get_docker_image_name(instance, data_source=data_source)
         image_source = "lintangsutawika/agent-swe-smith"
         server_image = get_agent_server_docker_image(image_source, image_name)
@@ -124,8 +124,10 @@ def init_and_run(
         with APIRemoteWorkspace(
             runtime_api_url="https://runtime.eval.all-hands.dev",
             runtime_api_key=os.getenv("OPENHANDS_RUNTIME_API_KEY"),
+            working_dir=repo_path,
             server_image=server_image,
             target_type="source",
+            api_timeout=600,
         ) as workspace:
             
             instance["repo_path"] = repo_path
@@ -158,10 +160,10 @@ def init_and_run(
             workspace.execute_command("git branch -m main", cwd=repo_path)
             # print(workspace.execute_command("git log", cwd=repo_path).stdout)
 
-            # api_key = os.getenv("CMU_KEY")
-            # api_url = os.getenv("CMU_URL")
-            # assert api_key is not None, "CMU_KEY environment variable is not set."
-            # assert api_url is not None, "CMU_URL environment variable is not set."
+            api_key = os.getenv("CMU_KEY")
+            api_url = os.getenv("CMU_URL")
+            assert api_key is not None, "CMU_KEY environment variable is not set."
+            assert api_url is not None, "CMU_URL environment variable is not set."
             # llm = LLM(
             #     service_id="agent",
             #     model="litellm_proxy/neulab/claude-sonnet-4-20250514",
@@ -181,6 +183,7 @@ def init_and_run(
                     litellm_extra_body={
                         "return_token_ids": True,
                         "include_stop_str_in_output": True,
+                        "session_id": f"{instance['instance_id']}_{trajectory_id.repetition_id}",
                     }
                 ),
                 tools=get_default_tools(
@@ -193,7 +196,7 @@ def init_and_run(
                 agent=agent,
                 workspace=workspace,
                 # callbacks=[conversation_callback],
-                max_iteration_per_run=10,
+                max_iteration_per_run=25,
                 stuck_detection=True,
                 visualizer=None,
             )
@@ -240,7 +243,7 @@ def init_and_run(
             f"Error processing instance {instance['instance_id']}: {e}", exc_info=True
         )
         # exit_status, result = type(e).__name__, str(e)
-        error = str(e)
+        error = f"Error with image: {server_image}\n"+str(e)
         # extra_info = {"traceback": traceback.format_exc()}
     finally:
         # Create trajectory directory with proper structure: step_{global_step}/{train/eval}
@@ -291,18 +294,20 @@ class OpenhandsGenerator(SkyRLGymGenerator):
         self.http_server_inference_engine_client_port = generator_cfg.get(
             "http_server_inference_engine_client_port", 8000
         )
-        base_url = f"http://{self.http_server_inference_engine_client_host}:{self.http_server_inference_engine_client_port}"
+        # base_url = f"http://{self.http_server_inference_engine_client_host}:{self.http_server_inference_engine_client_port}"
         self.generator_cfg = generator_cfg
         self.tokenizer = tokenizer
         self.model_name = model_name
         # self.litellm_model_name = "openai/" + self.model_name
-        self.litellm_model_name = "hosted_vllm/" + self.model_name
+        # self.litellm_model_name = "hosted_vllm/" + self.model_name
+        self.litellm_model_name = "litellm_proxy/" + self.model_name
 
         if self.generator_cfg.chat_template.name_or_path is not None:
             raise NotImplementedError(
                 "OpenhandsGenerator doesn't support custom chat template"
             )
 
+        base_url = "http://0.0.0.0:8080"
         listener = ngrok.forward(
                 addr=base_url,
                 authtoken=os.getenv("NGROK_KEY")
