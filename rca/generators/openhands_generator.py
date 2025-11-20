@@ -210,7 +210,7 @@ def init_and_run(
             port = litellm_base_url.split(":")[-1].split("/")[0]
             url_tunnel, process = create_localtunnel(port=int(port))
             print("Localtunnel URL:", url_tunnel)
-            model_as_condenser = True
+            model_as_condenser = False
             if model_as_condenser:
                 llm = LLM(
                     service_id="agent",
