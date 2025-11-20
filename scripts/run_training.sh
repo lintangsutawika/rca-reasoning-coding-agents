@@ -50,7 +50,7 @@ LOGGER=wandb
 
 # We use a small batch size here for demonstration
 # NOTE (sumanthrh): The `generator.max_turns` here is actually unused, and we use the `step_limit` from the `swebench.yaml` file. 
-uv run --isolated -m rca.train \
+CUDA_LAUNCH_BLOCKING=1 uv run --isolated -m rca.train \
   data.train_data="['$DATA_PATH/train.parquet']" \
   data.val_data="['$DATA_PATH/validation.parquet']" \
   trainer.algorithm.advantage_estimator="grpo" \
@@ -59,27 +59,30 @@ uv run --isolated -m rca.train \
   trainer.policy.model.path=${MODEL} \
   trainer.placement.colocate_all=true \
   trainer.strategy=fsdp2 \
+  trainer.policy.fsdp_config.cpu_offload=true \
+  trainer.policy.fsdp_config.reshard_after_forward=true \
+  trainer.policy.fsdp_config.fsdp_size=-1 \
   trainer.placement.policy_num_gpus_per_node=$NUM_GPUS \
   trainer.placement.ref_num_gpus_per_node=$NUM_GPUS \
   trainer.placement.policy_num_nodes=$NNODES \
   trainer.placement.ref_num_nodes=$NNODES \
-  trainer.policy.sequence_parallel_size=2 \
+  trainer.policy.sequence_parallel_size=1 \
   generator.num_inference_engines=$NUM_INFERENCE_ENGINES \
   generator.inference_engine_tensor_parallel_size=$TP_SIZE \
   +generator.traj_dir=$CKPT_PATH/trajectories/ \
-  +generator.engine_init_kwargs="{enable_auto_tool_choice:true,tool_call_parser:hermes,max_model_len:100000}" \
+  +generator.engine_init_kwargs="{enable_auto_tool_choice:true,tool_call_parser:hermes,max_model_len:40960}" \
   trainer.epochs=20 \
   trainer.eval_batch_size=50 \
   trainer.eval_before_train=false \
   trainer.eval_interval=5 \
   trainer.update_epochs_per_batch=1 \
-  trainer.train_batch_size=4 \
-  trainer.policy_mini_batch_size=4 \
+  trainer.train_batch_size=8 \
+  trainer.policy_mini_batch_size=8 \
   trainer.micro_forward_batch_size_per_gpu=1 \
   trainer.micro_train_batch_size_per_gpu=1 \
   trainer.dump_data_batch=true \
   trainer.ckpt_interval=10 \
-  trainer.max_prompt_length=4096 \
+  trainer.max_prompt_length=30720 \
   generator.sampling_params.max_generate_length=${MAX_LENGTH} \
   generator.max_input_length=30720 \
   generator.max_turns=20 \
@@ -88,7 +91,7 @@ uv run --isolated -m rca.train \
   generator.run_engines_locally=True \
   generator.enable_http_endpoint=True \
   generator.http_endpoint_host='0.0.0.0' \
-  generator.http_endpoint_port=8080 \
+  generator.http_endpoint_port=9080 \
   generator.weight_sync_backend=nccl \
   generator.async_engine=true \
   generator.batched=true \
