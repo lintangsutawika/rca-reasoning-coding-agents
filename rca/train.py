@@ -4,8 +4,10 @@ from skyrl_train.entrypoints.main_base import BasePPOExp, config_dir, validate_c
 from skyrl_train.utils import initialize_ray
 import ray
 
-# from rca.generators.mini_swe_generator import MiniSweAgentGenerator
+import asyncio
+
 from rca.generators.openhands_generator import OpenhandsGenerator
+from rca.async_trainer import AsyncRayPPOTrainer
 
 
 class OpenhandsPPOExp(BasePPOExp):
@@ -19,11 +21,44 @@ class OpenhandsPPOExp(BasePPOExp):
         )
         return generator
 
+class AsyncOpenhandsPPOExp(OpenhandsPPOExp):
+    def get_trainer(
+        self,
+        cfg,
+        tracker,
+        tokenizer,
+        train_dataset,
+        eval_dataset,
+        inference_engine_client,
+        generator,
+        colocate_pg,
+    ):
+        return AsyncRayPPOTrainer(
+            cfg=cfg,
+            tracker=tracker,
+            tokenizer=tokenizer,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            inference_engine_client=inference_engine_client,
+            generator=generator,
+            colocate_pg=colocate_pg,
+        )
+
+    def run(self):
+        trainer = self._setup_trainer()
+        # Start the async training loop
+        asyncio.run(trainer.train())
+
 
 @ray.remote(num_cpus=1)
 def skyrl_entrypoint(cfg: DictConfig):
     # make sure that the training loop is not run on the head node.
-    exp = OpenhandsPPOExp(cfg)
+    if cfg.get("run_async_trainer", False):
+        print("Running async trainer")
+        exp = AsyncOpenhandsPPOExp(cfg)
+    else:
+        print("Running sync trainer")
+        exp = OpenhandsPPOExp(cfg)
     exp.run()
 
 
