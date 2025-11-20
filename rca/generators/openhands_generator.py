@@ -1,3 +1,5 @@
+import subprocess
+import re
 import json
 import asyncio
 from socket import timeout
@@ -45,10 +47,9 @@ from openhands.sdk import (
     RemoteConversation,
     # LLMConvertibleEvent,
     # TokenEvent,
+    LLMSummarizingCondenser,
     get_logger,
 )
-
-from openhands.sdk.event import TokenEvent
 
 from rca.utils.containers import get_agent_server_docker_image
 
@@ -75,6 +76,47 @@ def timeout(seconds):
         yield
     finally:
         signal.alarm(0)
+
+
+def create_localtunnel(port=8080):
+    """
+    Create a localtunnel for the specified port and return the URL.
+    
+    Args:
+        port (int): The local port to expose (default: 8080)
+    
+    Returns:
+        str: The localtunnel URL
+    
+    Raises:
+        RuntimeError: If localtunnel fails to start or URL cannot be extracted
+    """
+    try:
+        # Start localtunnel process
+        process = subprocess.Popen(
+            ['npx', 'localtunnel', '--port', str(port)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1
+        )
+        
+        # Read output line by line to find the URL
+        for line in process.stdout:
+            # Look for the URL pattern
+            match = re.search(r'https://[^\s]+\.loca\.lt', line)
+            if match:
+                url = match.group(0)
+                return url, process
+        
+        # If we get here, no URL was found
+        stderr = process.stderr.read()
+        raise RuntimeError(f"Failed to get localtunnel URL. Error: {stderr}")
+        
+    except FileNotFoundError:
+        raise RuntimeError("npx or localtunnel not found. Make sure Node.js is installed.")
+    except Exception as e:
+        raise RuntimeError(f"Error creating localtunnel: {str(e)}")
 
 @ray.remote(num_cpus=0.01)
 def init_and_run(
@@ -164,31 +206,60 @@ def init_and_run(
             api_url = os.getenv("CMU_URL")
             assert api_key is not None, "CMU_KEY environment variable is not set."
             assert api_url is not None, "CMU_URL environment variable is not set."
-            # llm = LLM(
-            #     service_id="agent",
-            #     model="litellm_proxy/neulab/claude-sonnet-4-20250514",
-            #     base_url=api_url,
-            #     api_key=api_key,
-            # )
 
-            agent = Agent(
-                # llm=llm,
+            port = litellm_base_url.split(":")[-1].split("/")[0]
+            url_tunnel, process = create_localtunnel(port=int(port))
+            print("Localtunnel URL:", url_tunnel)
+            model_as_condenser = True
+            if model_as_condenser:
+                llm = LLM(
+                    service_id="agent",
+                    model="litellm_proxy/neulab/claude-sonnet-4-20250514",
+                    base_url=api_url,
+                    api_key=api_key,
+                )
+
+                condenser = LLMSummarizingCondenser(
+                    llm=LLM(
+                        service_id="condenser",
+                        model=litellm_model_name,
+                        # base_url="http://host.docker.internal:8080/v1/",
+                        # base_url=f"http://{public_ip}:8080/v1/",
+                        # base_url=litellm_base_url,
+                        base_url=url_tunnel+"/v1/",
+                        api_key=os.getenv("API_KEY"),
+                        litellm_extra_body={
+                            "return_token_ids": True,
+                            "include_stop_str_in_output": True,
+                            "session_id": f"{instance['instance_id']}_{trajectory_id.repetition_id}",
+                        }
+                    ),
+                    max_size=8,
+                    keep_first=2,
+                )
+            else:
                 llm=LLM(
                     service_id="agent",
                     model=litellm_model_name,
                     # base_url="http://host.docker.internal:8080/v1/",
                     # base_url=f"http://{public_ip}:8080/v1/",
-                    base_url=litellm_base_url,
+                    # base_url=litellm_base_url,
+                    base_url=url_tunnel+"/v1/",
                     api_key=os.getenv("API_KEY"),
                     litellm_extra_body={
                         "return_token_ids": True,
                         "include_stop_str_in_output": True,
                         "session_id": f"{instance['instance_id']}_{trajectory_id.repetition_id}",
                     }
-                ),
+                )
+                condenser=None
+
+            agent = Agent(
+                llm=llm,
                 tools=get_default_tools(
                     enable_browser=False,
                 ),
+                # condenser=condenser,
                 cli_mode=False,
             )
 
@@ -198,7 +269,7 @@ def init_and_run(
                 # callbacks=[conversation_callback],
                 max_iteration_per_run=25,
                 stuck_detection=True,
-                visualizer=None,
+                visualizer=True,
             )
             # system_messages = {"role": "system", "content": list(map(lambda event: event.model_dump(), conversation.state.events))[0]["system_prompt"]["text"]}
 
@@ -218,6 +289,9 @@ def init_and_run(
             patch = workspace_result.stdout
             conversation.close()
             logger.info("Conversation Finished")
+
+            process.terminate()
+            process.wait()
 
             # Reward if a patch is generated
             if patch.startswith("diff --git"):
@@ -289,12 +363,12 @@ class OpenhandsGenerator(SkyRLGymGenerator):
         )
 
         self.http_server_inference_engine_client_host = generator_cfg.get(
-            "http_server_inference_engine_client_host", "127.0.0.1"
+            "http_endpoint_host", "127.0.0.1"
         )
         self.http_server_inference_engine_client_port = generator_cfg.get(
-            "http_server_inference_engine_client_port", 8000
+            "http_endpoint_port", 8000
         )
-        # base_url = f"http://{self.http_server_inference_engine_client_host}:{self.http_server_inference_engine_client_port}"
+        self.base_url = f"http://{self.http_server_inference_engine_client_host}:{self.http_server_inference_engine_client_port}"
         self.generator_cfg = generator_cfg
         self.tokenizer = tokenizer
         self.model_name = model_name
@@ -307,12 +381,16 @@ class OpenhandsGenerator(SkyRLGymGenerator):
                 "OpenhandsGenerator doesn't support custom chat template"
             )
 
-        base_url = "http://0.0.0.0:8080"
-        listener = ngrok.forward(
-                addr=base_url,
-                authtoken=os.getenv("NGROK_KEY")
-            )
-        self.base_url = f"{listener.url()}/v1/"
+        # base_url = "http://0.0.0.0:8080"
+        # listener = ngrok.forward(
+        #         addr=base_url,
+        #         authtoken=os.getenv("NGROK_KEY")
+        #     )
+        # self.base_url = f"{listener.url()}/v1/"
+        # self.base_url = f"https://loud-terms-accept.loca.lt/v1/"
+        # self.base_url = create_localtunnel(port=8080)+"/v1/"
+        # self.base_url = base_url + "/v1/"
+        # print("Localtunnel URL:", self.base_url)
 
     async def openhands_agent_loop(
         self,
