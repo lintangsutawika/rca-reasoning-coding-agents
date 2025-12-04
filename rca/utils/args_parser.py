@@ -4,7 +4,7 @@ Argument parsing utilities for SWE-bench benchmarks.
 
 import argparse
 
-from benchmarks.utils.critics import add_critic_args
+from rca.utils.critics import add_critic_args
 
 
 def get_parser(add_llm_config: bool = True) -> argparse.ArgumentParser:

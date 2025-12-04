@@ -163,9 +163,9 @@ def evaluate_trajectory(
         p2p_failure = len(ret["eval_error"]["PASS_TO_PASS"]["failure"])
 
         f2p_score = f2p_success / (f2p_success + f2p_failure)
-        p2p_score = p2p_failure / (p2p_success + p2p_failure)
+        p2p_score = p2p_success / (p2p_success + p2p_failure)
 
-        resolution_score = f2p_score - p2p_score
+        resolution_score = (f2p_score + p2p_score) / 2.0
         ret["partial_score"] = resolution_score
     except Exception as e:
         logger.error(f"Error computing partial score: {e}")
