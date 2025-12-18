@@ -48,6 +48,7 @@ from openhands.sdk import (
     get_logger,
 )
 
+from rca.agent.agent import CustomAgent
 from rca.utils.tunnel import create_localtunnel
 from rca.utils.containers import get_agent_server_docker_image
 from rca.utils.timeout import timeout
@@ -180,7 +181,7 @@ def init_and_run(
             )
             condenser=None
 
-        agent = Agent(
+        agent = CustomAgent(
             llm=llm,
             tools=get_default_tools(
                 enable_browser=False,
@@ -329,53 +330,32 @@ class OpenhandsGenerator(SkyRLGymGenerator):
             if isinstance(result, dict) and "partial_score" in result:
                 reward += float(result["partial_score"])
 
-        if messages:
-            # print("=" * 100)
-            # print("Conversation finished. Got the following LLM messages:")
-            # for i, message in enumerate(messages):
-            #     print(f"Message {i}: {str(message)[:200]}")
-
-            token_messages = [msg for msg in messages if msg["kind"] == "TokenEvent"]
-
-            stop_reason = "complete"
-            prompt_ids_list = []
-            response_ids_list = []
-            trajectory_ids_list = []
-            loss_mask = []
-            initial_input_len = 0
-            past_trajectory_len = 0
+        token_messages = [msg for msg in messages if msg["kind"] == "TokenEvent"]
+        rollout_list = []
+        if len(token_messages) > 0:
             for idx, message in enumerate(token_messages):
                 current_prompt_ids = message["prompt_token_ids"]
                 current_response_ids = message["response_token_ids"]
+                step_reward = reward
 
-                prompt_ids_list.append(current_prompt_ids)
-                response_ids_list.append(current_response_ids)
-                trajectory_ids_list.append(current_prompt_ids + current_response_ids)
-
-                if idx == 0:
-                    initial_input_ids = current_prompt_ids
-                    initial_input_len = len(initial_input_ids)
-                    loss_mask = [1] * len(current_response_ids)
-                    continue
-
-                past_trajectory_len = len(trajectory_ids_list[idx-1])
-                past_response_len = len(response_ids_list[idx-1])
-                current_prompt_len = len(current_prompt_ids)
-                current_response_len = len(current_response_ids)
-
-                past_response_observation_ids = current_prompt_ids[past_trajectory_len:]
-                past_response_observation_len = len(past_response_observation_ids)
-                loss_mask.extend([0] * past_response_observation_len)
-                loss_mask.extend([1] * current_response_len)
-            
-            response_ids = current_prompt_ids[initial_input_len:] + current_response_ids
-            assert len(response_ids) == len(loss_mask), f"Response ids length {len(response_ids)} != loss mask length {len(loss_mask)}"
-
+                rollout_list.append(
+                    (
+                        current_response_ids,
+                        step_reward,
+                        "complete",
+                        [1]*len(current_response_ids),
+                        current_prompt_ids,
+                        None,
+                    )
+                )
         else:
             response_ids = [151643]
             stop_reason = "error"
-            loss_mask = [0]
+            loss_mask = [1]
             initial_input_ids = [151643]
+            rollout_list.append(
+                (response_ids, reward, stop_reason, loss_mask, initial_input_ids, None)
+            )
 
         # Create trajectory directory with proper structure: step_{global_step}/{train/eval}
         print("generator_cfg.traj_dir", generator_cfg.traj_dir)
@@ -401,7 +381,7 @@ class OpenhandsGenerator(SkyRLGymGenerator):
             with open(os.path.join(path, f"train_traj_{instance_id}_{trajectory_id.repetition_id}.diff"), "w") as f:
                 f.write(patch)
 
-        return (response_ids, reward, stop_reason, loss_mask, initial_input_ids, None)
+        return rollout_list
 
     async def generate(self, input_batch: GeneratorInput) -> GeneratorOutput:
         """
@@ -423,8 +403,7 @@ class OpenhandsGenerator(SkyRLGymGenerator):
             self.generator_cfg.backend, self.generator_cfg.sampling_params
         )
 
-        tasks = []
-
+        task_rollouts = []
         for i in range(len(prompts)):
             rollout = self.openhands_agent_loop(
                     prompts[i],
@@ -436,19 +415,28 @@ class OpenhandsGenerator(SkyRLGymGenerator):
                     batch_metadata=batch_metadata,
                 )
             
-            tasks.append(rollout)
+            task_rollouts.append(rollout)
 
-
-        all_outputs = await asyncio.gather(*tasks)
+        collected_task_rollouts = await asyncio.gather(*task_rollouts)
+        all_outputs = [rollout[0] for rollout in collected_task_rollouts]
 
         # Filter out the `None` entries, which means that trajectory generation failed
-        responses = [output[0] for output in all_outputs if output[0] is not None]
-        rewards = [output[1] for output in all_outputs if output[0] is not None]
-        stop_reasons = [output[2] for output in all_outputs if output[0] is not None]
-        loss_masks = [output[3] for output in all_outputs if output[0] is not None]
-        prompt_token_ids = [
-            output[4] for output in all_outputs if output[0] is not None
-        ]
+        responses = sum([[output[0] for output in step_outputs] for step_outputs in all_outputs], [])
+        rewards = sum([[output[1] for output in step_outputs] for step_outputs in all_outputs], [])
+        stop_reasons = sum([[output[2] for output in step_outputs] for step_outputs in all_outputs], [])
+        loss_masks = sum([[output[3] for output in step_outputs] for step_outputs in all_outputs], [])
+        prompt_token_ids = sum([[output[4] for output in step_outputs] for step_outputs in all_outputs], [])
+
+        out_trajectory_ids = []
+        is_last_step = []
+        for i in range(len(all_outputs)):
+            step_outputs = all_outputs[i]
+            for step_id in range(len(step_outputs)):
+                out_trajectory_id = copy.deepcopy(trajectory_ids[i])
+                out_trajectory_id.step = step_id
+                out_trajectory_ids.append(out_trajectory_id.instance_id)
+                is_last_step.append(step_id == len(step_outputs) - 1)
+
         if not len(responses):
             raise ValueError(
                 "Found no valid responses for this step. This means that generation failed for all trajectories, likely due to errors in environment setup."
@@ -463,6 +451,7 @@ class OpenhandsGenerator(SkyRLGymGenerator):
             "stop_reasons": stop_reasons,
             "rollout_metrics": rollout_metrics,
             "rollout_logprobs": None,
+            "is_last_step": is_last_step,
         }
 
         return generator_output
