@@ -17,9 +17,10 @@ def get_agent_server_docker_image(
     image_source: str,
     image_name: str,
     target: str = "source-minimal",
+    slug: str = "e485bba",
 ) -> str:
     return (
-        image_source + f":6a28b38-{extract_custom_tag(image_name)}-{target}"
+        image_source + f":{slug}-{extract_custom_tag(image_name)}-{target}"
     )
 
 # def apply_git_overrides(workspace, instance, cwd):
