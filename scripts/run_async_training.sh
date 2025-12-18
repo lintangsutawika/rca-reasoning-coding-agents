@@ -1,16 +1,13 @@
 #!/bin/bash
-#SBATCH --job-name=cso
-#SBATCH --output=../logs/%j.out
-#SBATCH --error=../logs/%j.out
-#SBATCH --partition=general
-#SBATCH --gres=gpu:L40S:8
-#SBATCH --nodes=1
-#SBATCH --time=2-00:00:00
-#SBATCH --mem=700G
-#SBATCH --cpus-per-task=8
-#SBATCH --ntasks-per-node=1
 
+
+# Load environment variables
 . .env
+
+# or manually
+# WANDB_API_KEY=${WANDB_API_KEY}
+# NGROK_KEY=${NGROK_KEY}
+# OPENHANDS_RUNTIME_API_KEY=${OPENHANDS_RUNTIME_API_KEY}
 
 while getopts ":m:n:d:s:o:i:t:" opt; do
   case ${opt} in
@@ -29,7 +26,7 @@ MODEL_ALIAS=$(echo $MODEL | sed 's/\//-/g')
 # Get number of GPUs available
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 N_ROLLOUTS="${N_ROLLOUTS:-8}"
-BATCH_SIZE=4
+BATCH_SIZE=8
 MAX_LENGTH=8192
 RUN_NAME="${MODEL_ALIAS}"
 set -x
