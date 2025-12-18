@@ -56,7 +56,12 @@ def collect_unique_base_images(dataset, split, n_limit):
 
     if "image_name" in df.columns:
         logger.info("Using `image_name` column to collect unique base images.")
-        return sorted(set(df["image_name"].tolist()))
+        # get one row of each unique image_name
+        unique_images = df.drop_duplicates(subset=["image_name"])
+        return sorted(
+            {get_official_docker_image(row, "swe-smith") for _, row in unique_images.iterrows()}
+        )
+        
 
     return sorted(
         {get_official_docker_image(str(row["instance_id"])) for _, row in df.iterrows()}
