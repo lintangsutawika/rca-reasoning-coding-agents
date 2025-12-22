@@ -144,7 +144,7 @@ def init_and_run(
         model_as_condenser = False
         if model_as_condenser:
             llm = LLM(
-                service_id="agent",
+                usage_id="agent",
                 model="litellm_proxy/neulab/claude-sonnet-4-20250514",
                 # model="litellm_proxy/neulab/gpt-oss-120b",
                 base_url=api_url,
@@ -153,7 +153,7 @@ def init_and_run(
 
             condenser = LLMSummarizingCondenser(
                 llm=LLM(
-                    service_id="condenser",
+                    usage_id="condenser",
                     model=litellm_model_name,
                     base_url=litellm_base_url,
                     api_key="sk-x",
@@ -168,7 +168,7 @@ def init_and_run(
             )
         else:
             llm=LLM(
-                service_id="agent",
+                usage_id="agent",
                 model=litellm_model_name,
                 base_url=litellm_base_url,
                 api_key="sk-x",
