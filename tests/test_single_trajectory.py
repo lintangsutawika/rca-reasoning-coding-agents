@@ -69,6 +69,12 @@ if __name__ == "__main__":
     # base_url = base_url+"/v1/"
     base_url = "http://0.0.0.0:8080"
 
+    listener = ngrok.forward(
+            addr=base_url,
+            authtoken=os.getenv("NGROK_KEY")
+        )
+    base_url = f"{listener.url()}/v1/"
+
     for image_name in image_names:
         print(image_name)
         instance = dataset[dataset["image_name"] == image_name].iloc[0].to_dict()
