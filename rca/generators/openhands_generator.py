@@ -1,3 +1,4 @@
+import copy
 import subprocess
 import re
 import json
@@ -152,14 +153,12 @@ def init_and_run(
                 llm=LLM(
                     service_id="condenser",
                     model=litellm_model_name,
-                    # base_url="http://host.docker.internal:8080/v1/",
-                    # base_url=f"http://{public_ip}:8080/v1/",
                     base_url=litellm_base_url,
                     api_key="sk-x",
                     litellm_extra_body={
                         "return_token_ids": True,
                         "include_stop_str_in_output": True,
-                        "session_id": f"{instance['instance_id']}_{global_step}_{trajectory_id.repetition_id}",
+                        # "session_id": f"{instance['instance_id']}_{global_step}_{trajectory_id.repetition_id}",
                     }
                 ),
                 max_size=8,
@@ -169,14 +168,12 @@ def init_and_run(
             llm=LLM(
                 service_id="agent",
                 model=litellm_model_name,
-                # base_url="http://host.docker.internal:8080/v1/",
-                # base_url=f"http://{public_ip}:8080/v1/",
                 base_url=litellm_base_url,
                 api_key="sk-x",
                 litellm_extra_body={
                     "return_token_ids": True,
                     "include_stop_str_in_output": True,
-                    "session_id": f"{instance['instance_id']}_{global_step}_{trajectory_id.repetition_id}",
+                    # "session_id": f"{instance['instance_id']}_{global_step}_{trajectory_id.repetition_id}",
                 }
             )
             condenser=None
@@ -230,13 +227,13 @@ class OpenhandsGenerator(SkyRLGymGenerator):
             generator_cfg, skyrl_gym_cfg, inference_engine_client, tokenizer, model_name
         )
 
-        self.http_server_inference_engine_client_host = generator_cfg.get(
+        self.http_endpoint_host = generator_cfg.get(
             "http_endpoint_host", "127.0.0.1"
         )
-        self.http_server_inference_engine_client_port = generator_cfg.get(
+        self.http_endpoint_port = generator_cfg.get(
             "http_endpoint_port", 8000
         )
-        self.base_url = f"http://{self.http_server_inference_engine_client_host}:{self.http_server_inference_engine_client_port}"
+        self.base_url = f"http://{self.http_endpoint_host}:{self.http_endpoint_port}"
         self.generator_cfg = generator_cfg
         self.tokenizer = tokenizer
         self.model_name = model_name
@@ -249,16 +246,11 @@ class OpenhandsGenerator(SkyRLGymGenerator):
                 "OpenhandsGenerator doesn't support custom chat template"
             )
 
-        # base_url = "http://0.0.0.0:8080"
-        # listener = ngrok.forward(
-        #         addr=base_url,
-        #         authtoken=os.getenv("NGROK_KEY")
-        #     )
-        # self.base_url = f"{listener.url()}/v1/"
-        # self.base_url = f"https://loud-terms-accept.loca.lt/v1/"
-        # self.base_url = create_localtunnel(port=8080)+"/v1/"
-        # self.base_url = base_url + "/v1/"
-        # print("Localtunnel URL:", self.base_url)
+        listener = ngrok.forward(
+                addr=self.base_url,
+                authtoken=os.getenv("NGROK_KEY")
+            )
+        self.base_url = f"{listener.url()}/v1/"
 
     async def openhands_agent_loop(
         self,
@@ -272,7 +264,6 @@ class OpenhandsGenerator(SkyRLGymGenerator):
     ) -> Tuple[List[int], float, str, List[int], List[int], Optional[List[int]]]:
         # sweagent_config = yaml.safe_load(get_config_path(self.generator_cfg.miniswe_config_path).read_text())
         # NOTE (sumanthrh): Input `prompt` is not used here because mini-swe-agent uses a similar entry from the `instance` obj
-
 
         port = self.base_url.split(":")[-1].split("/")[0]
         url_tunnel, process = create_localtunnel(port=int(port))
