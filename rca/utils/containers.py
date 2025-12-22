@@ -19,9 +19,11 @@ def get_agent_server_docker_image(
     target: str = "source-minimal",
     slug: str = "e485bba",
 ) -> str:
+
+    image_name = image_name.replace("/", "_s_")
+
     return (
         # image_source + f":{slug}-{extract_custom_tag(image_name)}-{target}"
-        image_name = image_name.replace("/", "_s_")
         image_source + f":{slug}-{image_name}-{target}"
     )
 
