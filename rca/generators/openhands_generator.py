@@ -35,7 +35,7 @@ from skyrl_train.generators.utils import (
     encode_messages_subset,
 )
 
-from openhands.workspace import DockerWorkspace, APIRemoteWorkspace, LocalWorkspace
+from openhands.workspace import APIRemoteWorkspace
 from openhands.tools.preset.default import get_default_tools
 from openhands.sdk import (
     Agent,
@@ -90,7 +90,9 @@ def init_and_run(
     repo_path = f"/workspace/{instance['repo'].split('/')[-1]}_{global_step}_{trajectory_id.repetition_id}/"
     image_name = get_docker_image_name(instance, data_source=data_source)
     image_source = "lintangsutawika/agent-swe-smith"
-    server_image = get_agent_server_docker_image(image_source, image_name)
+    server_image = get_agent_server_docker_image(
+        image_source, image_name, slug=os.getenv("SDK_VERSION")
+        )
     print("server_image", server_image)
     print("repo_path", repo_path)
 
