@@ -77,6 +77,7 @@ def init_and_run(
     trajectory_id: Union[TrajectoryID, Any],
     global_step: int,
     training_phase: Union[TrainingPhase, Any],
+    return_token_ids=True,
 ):
 
     agent = None
@@ -141,16 +142,8 @@ def init_and_run(
         assert api_url is not None, "CMU_URL environment variable is not set."
 
         # model_as_condenser = True
-        model_as_condenser = False
+        model_as_condenser = generator_cfg.get("model_as_condenser", False)
         if model_as_condenser:
-            llm = LLM(
-                usage_id="agent",
-                model="litellm_proxy/neulab/claude-sonnet-4-20250514",
-                # model="litellm_proxy/neulab/gpt-oss-120b",
-                base_url=api_url,
-                api_key=api_key,
-            )
-
             condenser = LLMSummarizingCondenser(
                 llm=LLM(
                     usage_id="condenser",
@@ -158,7 +151,7 @@ def init_and_run(
                     base_url=litellm_base_url,
                     api_key="sk-x",
                     litellm_extra_body={
-                        "return_token_ids": True,
+                        "return_token_ids": return_token_ids,
                         "include_stop_str_in_output": True,
                         # "session_id": f"{instance['instance_id']}_{global_step}_{trajectory_id.repetition_id}",
                     }
@@ -167,20 +160,21 @@ def init_and_run(
                 keep_first=2,
             )
         else:
-            llm=LLM(
-                usage_id="agent",
-                model=litellm_model_name,
-                base_url=litellm_base_url,
-                api_key="sk-x",
-                litellm_extra_body={
-                    "return_token_ids": True,
-                    "include_stop_str_in_output": True,
-                    # "session_id": f"{instance['instance_id']}_{global_step}_{trajectory_id.repetition_id}",
-                }
-            )
-            condenser=None
+            condenser = None
 
-        agent = CustomAgent(
+        llm=LLM(
+            usage_id="agent",
+            model=litellm_model_name,
+            base_url=litellm_base_url,
+            api_key="sk-x",
+            litellm_extra_body={
+                "return_token_ids": return_token_ids,
+                "include_stop_str_in_output": True,
+                # "session_id": f"{instance['instance_id']}_{global_step}_{trajectory_id.repetition_id}",
+            }
+        )
+
+        agent = Agent(
             llm=llm,
             tools=get_default_tools(
                 enable_browser=False,
@@ -192,7 +186,7 @@ def init_and_run(
         conversation = Conversation(
             agent=agent,
             workspace=workspace,
-            max_iteration_per_run=50,
+            max_iteration_per_run=20,
             stuck_detection=True,
             visualizer=None,
         )
@@ -434,6 +428,28 @@ class OpenhandsGenerator(SkyRLGymGenerator):
             raise ValueError(
                 "Found no valid responses for this step. This means that generation failed for all trajectories, likely due to errors in environment setup."
             )
+
+        train_summarization = False
+        if train_summarization:
+            # Train Summarization
+            # Collect rollout based on responses and rewards
+            # 8 * 8
+            task_rollouts = []
+            for i in range(len(prompts)):
+                rollout = self.summarization_loop(
+                        prompts[i],
+                        env_extras[i],
+                        max_tokens=max_tokens,
+                        max_input_length=max_input_length,
+                        sampling_params=sampling_params,
+                        trajectory_id=trajectory_ids[i],
+                        batch_metadata=batch_metadata,
+                    )
+                
+                task_rollouts.append(rollout)
+
+            collected_task_rollouts = await asyncio.gather(*task_rollouts)
+
         rollout_metrics = get_rollout_metrics(responses, rewards)
 
         generator_output: GeneratorOutput = {
