@@ -67,17 +67,22 @@ def main(cfg: DictConfig) -> None:
     # validate the arguments
     validate_cfg(cfg)
 
-    # # Check cfg.generator.reward if it exists or not
-    # if hasattr(cfg.generator, "reward"):
-    #     # Open yaml file and print its contents
-    #     with open(cfg.generator.reward, "r") as f:
-    #         reward_cfg = OmegaConf.load(f)
-    #     cfg.generator.reward = reward_cfg.reward
-    # else:
-    #     with open_dict(cfg):
-    #         cfg.generator.reward = [
-    #             {"fn": REWARD_NAME},
-    #         ]
+    # check cfg.generator.exp_config if it exists or not
+    if hasattr(cfg.generator, "exp_config"):
+        # Open yaml file and print its contents
+        with open(cfg.generator.exp_config, "r") as f:
+            exp_cfg = OmegaConf.load(f)
+
+        with open_dict(cfg):
+            cfg.generator.reward = exp_cfg.reward
+            # Parse prompts if they exist in the exp config
+            if hasattr(exp_cfg, "prompts"):
+                cfg.generator.prompts = exp_cfg.prompts
+    else:
+        with open_dict(cfg):
+            cfg.generator.reward = [
+                {"fn": "resolve_reward"},
+            ]
 
     initialize_ray(cfg)
     ray.get(skyrl_entrypoint.remote(cfg))
