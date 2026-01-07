@@ -35,7 +35,7 @@ from skyrl_train.generators.utils import (
     encode_messages_subset,
 )
 
-from openhands.workspace import APIRemoteWorkspace
+from openhands.workspace import ApptainerWorkspace
 from openhands.tools.preset.default import get_default_tools
 from openhands.sdk import (
     Agent,
@@ -89,21 +89,19 @@ def init_and_run(
 
     print("data_source", data_source)
     repo_path = f"/workspace/{instance['repo'].split('/')[-1]}_{global_step}_{trajectory_id.repetition_id}/"
-    image_name = get_docker_image_name(instance, data_source=data_source)
-    image_source = "lintangsutawika/agent-swe-smith"
+    # image_name = get_docker_image_name(instance, data_source=data_source)
+    image_name = instance["image_name"]
+    image_source = os.getenv("IMAGE_SOURCE", "lintangsutawika/agent-swe-smith")
+    slug = os.getenv("SDK_VERSION", "62d35bb")
     server_image = get_agent_server_docker_image(
-        image_source, image_name, slug=os.getenv("SDK_VERSION")
+        image_source, image_name, slug=slug,
         )
     print("server_image", server_image)
     print("repo_path", repo_path)
-
-    with APIRemoteWorkspace(
-        runtime_api_url="https://runtime.eval.all-hands.dev",
-        runtime_api_key=os.getenv("OPENHANDS_RUNTIME_API_KEY"),
-        working_dir=repo_path,
+    with ApptainerWorkspace(
         server_image=server_image,
-        target_type="source",
-        api_timeout=600,
+        working_dir="/workspace",
+        cache_dir=os.getenv("APPTAINER_CACHE_DIR", "/tmp/apptainer_swesmith_cache"),
     ) as workspace:
 
         instance["repo_path"] = repo_path
@@ -242,11 +240,14 @@ class OpenhandsGenerator(SkyRLGymGenerator):
                 "OpenhandsGenerator doesn't support custom chat template"
             )
 
-        listener = ngrok.forward(
-                addr=self.base_url,
-                authtoken=os.getenv("NGROK_KEY")
-            )
-        self.base_url = f"{listener.url()}/v1/"
+        if self.generator_cfg.get("use_ngrok", False):
+            listener = ngrok.forward(
+                    addr=self.base_url,
+                    authtoken=os.getenv("NGROK_KEY")
+                )
+            self.base_url = f"{listener.url()}/v1/"
+        else:
+            self.base_url = f"{self.base_url}/v1/"
 
     async def openhands_agent_loop(
         self,
@@ -261,9 +262,9 @@ class OpenhandsGenerator(SkyRLGymGenerator):
         # sweagent_config = yaml.safe_load(get_config_path(self.generator_cfg.miniswe_config_path).read_text())
         # NOTE (sumanthrh): Input `prompt` is not used here because mini-swe-agent uses a similar entry from the `instance` obj
 
-        port = self.base_url.split(":")[-1].split("/")[0]
-        url_tunnel, process = create_localtunnel(port=int(port))
-        print("Localtunnel URL:", url_tunnel)
+        # port = self.base_url.split(":")[-1].split("/")[0]
+        # url_tunnel, process = create_localtunnel(port=int(port))
+        # print("Localtunnel URL:", url_tunnel)
 
         instance = env_extras["instance"]
         generator_cfg = self.generator_cfg
