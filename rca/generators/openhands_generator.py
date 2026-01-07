@@ -6,6 +6,9 @@ import asyncio
 from socket import timeout
 from typing import Dict, List, Optional, Any, Tuple, Union
 import uuid
+
+import fsspec
+import gcsfs
 from omegaconf import DictConfig
 import traceback
 import ray
@@ -16,10 +19,7 @@ import ast
 
 # from minisweagent.run.utils.save import save_traj
 from rca.utils.prompt import get_instruction
-from rca.utils.mini_swe import (
-    evaluate_trajectory,
-    get_docker_image_name,
-)
+from rca.rewards import get_reward_function
 
 from skyrl_train.generators.skyrl_gym_generator import (
     SkyRLGymGenerator,
@@ -296,27 +296,43 @@ class OpenhandsGenerator(SkyRLGymGenerator):
             patch = ""
             error = f"Error in init_and_run: {e}"
 
+        # Reward Manager
         reward = 0
         result = None
-        if patch != "":
-           # Reward if a patch is generated
-            if patch.startswith("diff --git"):
-                reward = 1
-            else:
-                reward = 0
-
-            # with 5 minutes timeout
+        reward_dict = {}
+        for reward_fn_args in self.generator_cfg.reward:
             try:
-                with timeout(300):
-                    result = evaluate_trajectory(
-                        instance, patch, {"environment": {"environment_class": "singularity"}, "cwd": "/testbed"}, data_source
-                    )
-            except TimeoutError as e:
-                result = None
-                error = f"TimeoutError during evaluation: {e}"
+                input_args = {
+                    "patch": patch,
+                    "instance": instance,
+                }
 
-            if isinstance(result, dict) and "partial_score" in result:
-                reward += float(result["partial_score"])
+                reward_fn = get_reward_function(reward_fn_args["fn"])
+
+                input_args = {
+                    **input_args, 
+                    **reward_fn_args.get("args", {})
+                    }
+
+                reward_weight = reward_fn_args.get("weight", 1.0)
+                reward_outputs = reward_fn(**input_args)
+                if isinstance(reward_outputs, tuple):
+                    reward_value, reward_items = reward_outputs
+                else:
+                    reward_value = reward_outputs
+                    reward_items = {reward_fn_args["fn"]: reward_value}
+                reward_value = reward_value * reward_weight
+            except Exception as e:
+                logger.error(f"Error in computing reward {reward_fn_args['fn']}: {e}", exc_info=True)
+                reward_value = 0.0
+                reward_items = {reward_fn_args["fn"]: reward_value}
+
+            reward += reward_value
+
+            reward_dict = {
+                **reward_dict,
+                **reward_items,
+            }
 
         token_messages = [msg for msg in messages if msg["kind"] == "TokenEvent"]
         rollout_list = []
@@ -339,37 +355,60 @@ class OpenhandsGenerator(SkyRLGymGenerator):
         else:
             response_ids = [151643]
             stop_reason = "error"
-            loss_mask = [1]
+            loss_mask = [0]
             initial_input_ids = [151643]
             rollout_list.append(
                 (response_ids, reward, stop_reason, loss_mask, initial_input_ids, None)
             )
 
-        # Create trajectory directory with proper structure: step_{global_step}/{train/eval}
-        print("generator_cfg.traj_dir", generator_cfg.traj_dir)
-        path = Path(generator_cfg.traj_dir) / f"step_{global_step}" / training_phase
-        path.mkdir(parents=True, exist_ok=True)
-        # Use instance_id and repetition_id for meaningful filename: {instance_id}_{repetition_id}.json
-        instance_id = instance["instance_id"]
-        filename = f"{instance_id}_{trajectory_id.repetition_id}.jsonl"
-        # path = path / filename
+        # Add "/" at the end of traj_dir if not present
+        if not self.generator_cfg.traj_dir.endswith("/"):
+            self.generator_cfg.traj_dir += "/"
 
-        result_dict = {
-            "reward": reward,
-            "detailed_result": result,
-            "error": error,
-            "patch": patch,
-            "messages": messages,
-        }
+        path = self.generator_cfg.traj_dir + f"step_{batch_metadata.global_step}/{batch_metadata.training_phase}/"
+        # Check if traj_dir is a gcs path
+        if path.startswith("gs://"):
+            use_gcs = True
+            fs = gcsfs.GCSFileSystem()
+        else:
+            use_gcs = False
+            fs = fsspec.filesystem("file")
+            # Pre-create directory to avoid race conditions with parallel workers
+            os.makedirs(path, exist_ok=True)
+        
+        instance_id = env_extras["instance_id"]
 
-        with open(os.path.join(path, f"train_traj_{instance_id}_{trajectory_id.repetition_id}.json"), "w") as f:
-            json.dump(result_dict, f, indent=2)
+        if error is not None:
+            filename = f"{instance_id}_{trajectory_id.repetition_id}.error"
+            filename_path = path + filename
+            print(f"Saving error to {filename_path}")
+            if use_gcs == False:
+                os.makedirs(os.path.dirname(filename_path), exist_ok=True)
+            with fs.open(filename_path, "w", auto_mkdir=True) as f:
+                f.write(error)
+        else:
+            filename = f"{instance_id}_{trajectory_id.repetition_id}.json"
+            filename_path = path + filename
 
-        if patch.startswith("diff --git"):
-            with open(os.path.join(path, f"train_traj_{instance_id}_{trajectory_id.repetition_id}.diff"), "w") as f:
-                f.write(patch)
+            if use_gcs == False:
+                os.makedirs(os.path.dirname(filename_path), exist_ok=True)
 
-        return rollout_list
+            result_dict = {
+                "instance_id": instance_id,
+                "target": env_extras["target"],
+                "total_reward": reward,
+                "reward_dict": reward_dict,
+                "patch": patch,
+                "messages": messages,
+                # "metrics_dict": metrics_dict,
+            }
+
+            print(f"Saving trajectory to {filename_path}")
+            with fs.open(filename_path, "w", auto_mkdir=True) as f:
+                json.dump(result_dict, f, indent=2) #, sort_keys=True, ensure_ascii=False)
+
+
+        return [rollout_list, reward_dict, {}]
 
     async def generate(self, input_batch: GeneratorInput) -> GeneratorOutput:
         """
@@ -406,7 +445,10 @@ class OpenhandsGenerator(SkyRLGymGenerator):
             task_rollouts.append(rollout)
 
         collected_task_rollouts = await asyncio.gather(*task_rollouts)
+
         all_outputs = [rollout[0] for rollout in collected_task_rollouts]
+        rewards_dict = [rollout[1] for rollout in collected_task_rollouts]
+        metrics_dict = [rollout[2] for rollout in collected_task_rollouts]
 
         # Filter out the `None` entries, which means that trajectory generation failed
         responses = sum([[output[0] for output in step_outputs] for step_outputs in all_outputs], [])
@@ -453,6 +495,25 @@ class OpenhandsGenerator(SkyRLGymGenerator):
 
         rollout_metrics = get_rollout_metrics(responses, rewards)
 
+        tracked_metrics = {}
+
+        # Aggregate Rewards and Metrics
+        for tracker_name, tracker_dict in zip(
+            ["reward", "metrics"], [rewards_dict, metrics_dict]
+        ):
+            for tracker_dict_item in tracker_dict:
+                for k, v in tracker_dict_item.items():
+                    # Check if v is numeric
+                    if not isinstance(v, (int, float)):
+                        continue
+                    if f"{tracker_name}/{k}" not in tracked_metrics:
+                        tracked_metrics[f"{tracker_name}/{k}"] = []
+                    tracked_metrics[f"{tracker_name}/{k}"].append(v)
+        
+        # Average all tracked metrics
+        for k, v in tracked_metrics.items():
+            tracked_metrics[k] = sum(v) / len(v)
+
         generator_output: GeneratorOutput = {
             "prompt_token_ids": prompt_token_ids,
             "response_ids": responses,
@@ -462,6 +523,7 @@ class OpenhandsGenerator(SkyRLGymGenerator):
             "rollout_metrics": rollout_metrics,
             "rollout_logprobs": None,
             "is_last_step": is_last_step,
+            **tracked_metrics,
         }
 
         return generator_output
