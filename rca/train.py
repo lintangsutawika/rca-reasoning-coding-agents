@@ -1,5 +1,5 @@
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from skyrl_train.entrypoints.main_base import BasePPOExp, config_dir, validate_cfg
 from skyrl_train.utils import initialize_ray
 import ray
@@ -7,7 +7,7 @@ import ray
 import asyncio
 
 from rca.generators.openhands_generator import OpenhandsGenerator
-from rca.async_trainer import AsyncRayPPOTrainer
+from rca.async_trainer import CustomFullyAsyncRayPPOTrainer as FullyAsyncRayPPOTrainer
 
 
 class OpenhandsPPOExp(BasePPOExp):
@@ -33,7 +33,7 @@ class AsyncOpenhandsPPOExp(OpenhandsPPOExp):
         generator,
         colocate_pg,
     ):
-        return AsyncRayPPOTrainer(
+        return FullyAsyncRayPPOTrainer(
             cfg=cfg,
             tracker=tracker,
             tokenizer=tokenizer,
@@ -66,6 +66,23 @@ def skyrl_entrypoint(cfg: DictConfig):
 def main(cfg: DictConfig) -> None:
     # validate the arguments
     validate_cfg(cfg)
+
+    # check cfg.generator.exp_config if it exists or not
+    if hasattr(cfg.generator, "exp_config"):
+        # Open yaml file and print its contents
+        with open(cfg.generator.exp_config, "r") as f:
+            exp_cfg = OmegaConf.load(f)
+
+        with open_dict(cfg):
+            cfg.generator.reward = exp_cfg.reward
+            # Parse prompts if they exist in the exp config
+            if hasattr(exp_cfg, "prompts"):
+                cfg.generator.prompts = exp_cfg.prompts
+    else:
+        with open_dict(cfg):
+            cfg.generator.reward = [
+                {"fn": "resolve_reward"},
+            ]
 
     initialize_ray(cfg)
     ray.get(skyrl_entrypoint.remote(cfg))

@@ -1,15 +1,4 @@
 #!/bin/bash
-#SBATCH --job-name=rca
-#SBATCH --output=../logs/%j.out
-#SBATCH --error=../logs/%j.out
-#SBATCH --partition=general
-#SBATCH --gres=gpu:L40S:8
-#SBATCH --nodes=1
-#SBATCH --time=2-00:00:00
-#SBATCH --mem=512G
-#SBATCH --cpus-per-task=32
-#SBATCH --ntasks-per-node=1
-#SBATCH --exclude=babel-q5-28,babel-o5-20,babel-n5-28,babel-q5-24,babel-p5-20,babel-q5-20,babel-q5-32
 
 . .env
 
@@ -26,7 +15,7 @@ done
 MODEL_ALIAS=$(echo $MODEL | sed 's/\//-/g')
 # Get number of GPUs available
 NUM_GPUS=$(nvidia-smi -L | wc -l)
-N_ROLLOUTS="${N_ROLLOUTS:-2}"
+N_ROLLOUTS="${N_ROLLOUTS:-4}"
 MAX_LENGTH=8192
 RUN_NAME="openhands_${MODEL_ALIAS}"
 set -x
@@ -70,7 +59,7 @@ CUDA_LAUNCH_BLOCKING=1 uv run --isolated -m rca.train \
   generator.num_inference_engines=$NUM_INFERENCE_ENGINES \
   generator.inference_engine_tensor_parallel_size=$TP_SIZE \
   +generator.traj_dir=$CKPT_PATH/trajectories/ \
-  +generator.engine_init_kwargs="{enable_auto_tool_choice:true,tool_call_parser:hermes,max_model_len:40960}" \
+  +generator.engine_init_kwargs="{enable_auto_tool_choice:true,tool_call_parser:hermes,max_model_len:35536.0,reasoning-parser:qwen3}" \
   trainer.epochs=20 \
   trainer.eval_batch_size=50 \
   trainer.eval_before_train=false \

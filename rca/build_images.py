@@ -23,17 +23,17 @@ from openhands.sdk import get_logger
 logger = get_logger(__name__)
 
 
-def get_official_docker_image(
-    instance_id: str,
-    docker_image_prefix="docker.io/swebench/",
-) -> str:
-    # Official SWE-Bench image
-    # swebench/sweb.eval.x86_64.django_1776_django-11333:v1
-    repo, name = instance_id.split("__")
-    official_image_name = docker_image_prefix.rstrip("/")
-    official_image_name += f"/sweb.eval.x86_64.{repo}_1776_{name}:latest".lower()
-    logger.debug(f"Official SWE-Bench image: {official_image_name}")
-    return official_image_name
+# def get_official_docker_image(
+#     instance_id: str,
+#     docker_image_prefix="docker.io/swebench/",
+# ) -> str:
+#     # Official SWE-Bench image
+#     # swebench/sweb.eval.x86_64.django_1776_django-11333:v1
+#     repo, name = instance_id.split("__")
+#     official_image_name = docker_image_prefix.rstrip("/")
+#     official_image_name += f"/sweb.eval.x86_64.{repo}_1776_{name}:latest".lower()
+#     logger.debug(f"Official SWE-Bench image: {official_image_name}")
+#     return official_image_name
 
 
 def extract_custom_tag(base_image: str) -> str:
@@ -53,6 +53,16 @@ def collect_unique_base_images(dataset, split, n_limit):
     df = get_dataset(
         dataset_name=dataset, split=split, eval_limit=n_limit if n_limit else None
     )
+
+    if "image_name" in df.columns:
+        logger.info("Using `image_name` column to collect unique base images.")
+        # get one row of each unique image_name
+        unique_images = df.drop_duplicates(subset=["image_name"])
+        return sorted(
+            {get_official_docker_image(row, "swe-smith") for _, row in unique_images.iterrows()}
+        )
+        
+
     return sorted(
         {get_official_docker_image(str(row["instance_id"])) for _, row in df.iterrows()}
     )
@@ -81,3 +91,7 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
+
+    # uv run build_images.py \
+    #     --image "lintangsutawika/agent-swe-smith" \
+    #     --push --dry-run
